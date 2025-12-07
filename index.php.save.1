@@ -1,0 +1,1569 @@
+<?php
+    // --- 1. API TELEMETRII ---
+    if (isset($_GET['ajax_stats'])) {
+        header('Content-Type: application/json');
+        $stats = [];
+
+        // Hardware & Temp
+        $model = @file_get_contents('/sys/firmware/devicetree/base/model');
+        $stats['hw'] = $model ? str_replace("\0", "", trim($model)) : "Generic L                                                                                                 inux";
+        $temp_raw = @file_get_contents('/sys/class/thermal/thermal_zone0/temp');
+        $stats['temp'] = $temp_raw ? round($temp_raw / 1000, 1) : 0;
+
+        // RAM & Disk
+        $free = shell_exec('free -m');
+        $free_arr = explode("\n", (string)trim($free));
+        $mem = preg_split("/\s+/", $free_arr[1]);
+        $stats['ram_percent'] = round(($mem[2] / $mem[1]) * 100, 1);
+        $dt = disk_total_space('/');
+        $df = disk_free_space('/');
+        $stats['disk_percent'] = round((($dt - $df) / $dt) * 100, 1);
+
+        // NETWORK INFO
+        $ip = trim(shell_exec("hostname -I | awk '{print $1}'"));
+        $stats['ip'] = empty($ip) ? "Brak IP" : $ip;
+        $ssid = trim(shell_exec("iwgetid -r"));
+        if (!empty($ssid)) {
+            $stats['net_type'] = "WiFi";
+            $stats['ssid'] = $ssid;
+        } elseif (!empty($ip) && $ip != "127.0.0.1") {
+            $stats['net_type'] = "LAN";
+            $stats['ssid'] = "";
+        } else {
+            $stats['net_type'] = "Offline";
+            $stats['ssid'] = "";
+        }
+
+        echo json_encode($stats);
+        exit;
+    }
+
+    // --- 2. OBSŁUGA DTMF ---
+    if (isset($_POST['ajax_dtmf'])) {
+        $code = $_POST['ajax_dtmf'];
+        if (preg_match('/^[0-9A-D*#]+$/', $code)) {
+            shell_exec("sudo /usr/local/bin/send_dtmf.sh " . escapeshellarg($cod                                                                                                 e));
+            echo "OK: $code";
+        } else { echo "ERROR"; }
+        exit;
+    }
+
+    // --- KONFIGURACJA AUDIO I RADIO ---
+    $MIXER_IDS = [
+        'ADC_Gain' => 9, 'Mic1_Boost' => 8, 'Mic2_Boost' => 6,
+        'Mic1_Cap_Sw' => 18, 'Mic2_Cap_Sw' => 19, 'LineIn_Cap_Sw' => 17, 'Mixer_                                                                                                 Cap_Sw' => 15, 'Mixer_Rev_Cap_Sw' => 16,
+        'DAC_Vol' => 1, 'LineOut_Vol' => 3, 'LineOut_Sw' => 4, 'DAC_Sw' => 10, '                                                                                                 DAC_Rev_Sw' => 11,
+        'Mic1_PB_Vol' => 7, 'Mic2_PB_Vol' => 5, 'LineIn_PB_Vol' => 2,
+        'Mic1_PB_Sw' => 13, 'Mic2_PB_Sw' => 14, 'LineIn_PB_Sw' => 12, 'LineOut_S                                                                                                 ource' => 20
+    ];
+
+    function get_amixer_val($numid, $default) {
+        $out = shell_exec("sudo amixer -c 0 cget numid=$numid 2>&1");
+        if (preg_match('/: values=([^,\n]+)/', $out, $m)) {
+            $val = $m[1];
+            if ($val == 'on') return 1; if ($val == 'off') return 0;
+            return (int)$val;
+        }
+        return $default;
+    }
+
+    $CTCSS_MAP = [
+        "0000" => "Brak (Wyłączony)", "0670" => "67.0 Hz", "0719" => "71.9 Hz",                                                                                                  "0744" => "74.4 Hz", "0770" => "77.0 Hz",
+        "0797" => "79.7 Hz", "0825" => "82.5 Hz", "0854" => "85.4 Hz", "0885" =>                                                                                                  "88.5 Hz", "0915" => "91.5 Hz",
+        "0948" => "94.8 Hz", "0974" => "97.4 Hz", "1000" => "100.0 Hz", "1035" =                                                                                                 > "103.5 Hz", "1072" => "107.2 Hz",
+        "1109" => "110.9 Hz", "1148" => "114.8 Hz", "1188" => "118.8 Hz", "1230"                                                                                                  => "123.0 Hz", "1273" => "127.3 Hz",
+        "1318" => "131.8 Hz", "1365" => "136.5 Hz", "1413" => "141.3 Hz", "1462"                                                                                                  => "146.2 Hz", "1514" => "151.4 Hz",
+        "1567" => "156.7 Hz", "1622" => "162.2 Hz", "1679" => "167.9 Hz", "1738"                                                                                                  => "173.8 Hz", "1799" => "179.9 Hz",
+        "1862" => "186.2 Hz", "1928" => "192.8 Hz", "2035" => "203.5 Hz", "2107"                                                                                                  => "210.7 Hz", "2181" => "218.1 Hz",
+        "2257" => "225.7 Hz", "2336" => "233.6 Hz", "2418" => "241.8 Hz", "2503"                                                                                                  => "250.3 Hz"
+    ];
+
+    // --- LOGIKA FORMULARZY ---
+    if (isset($_POST['reset_audio_defaults'])) {
+        $output = shell_exec("sudo /usr/local/bin/reset_audio.sh 2>&1");
+        $audio_msg = "<div class='alert alert-warning' style='border-color: #FF9                                                                                                 800; color: #FF9800;'><strong>⚠️ Reset Audio:</strong><pre style='text-align:left                                                                                                 ; font-size:11px;'>$output</pre></div>";
+    }
+    if (isset($_POST['save_audio'])) {
+        foreach(['adc_vol'=>9, 'boost1_vol'=>8, 'boost2_vol'=>6, 'out_vol'=>3, '                                                                                                 dac_vol'=>1, 'mic1_pb_vol'=>7, 'mic2_pb_vol'=>5, 'linein_pb_vol'=>2] as $k => $i                                                                                                 d) if(isset($_POST[$k])) shell_exec("sudo amixer -c 0 cset numid=$id ".(int)$_PO                                                                                                 ST[$k]);
+        foreach(['Mic1_Cap_Sw'=>18, 'Mic2_Cap_Sw'=>19, 'LineIn_Cap_Sw'=>17, 'Mix                                                                                                 er_Cap_Sw'=>15, 'LineOut_Sw'=>4, 'DAC_Sw'=>10, 'Mic1_PB_Sw'=>13, 'Mic2_PB_Sw'=>1                                                                                                 4, 'LineIn_PB_Sw'=>12] as $n => $id) shell_exec("sudo amixer -c 0 cset numid=$id                                                                                                  ".(isset($_POST[$n])?'on':'off'));
+        shell_exec("sudo alsactl store");
+        $audio_msg = "<div class='alert alert-success'>Zapisano ustawienia audio                                                                                                 !</div>";
+    }
+
+    $audio = []; foreach ($MIXER_IDS as $name => $id) $audio[$name] = get_amixer                                                                                                 _val($id, 0);
+
+    // --- PARSOWANIE CONFIGU ---
+    function parse_svx_conf($file) {
+        $ini = []; $curr = "GLOBAL";
+        if (!file_exists($file)) return [];
+        foreach (file($file) as $line) {
+            $line = trim($line);
+            if (empty($line) || $line[0] == '#' || $line[0] == ';') continue;
+            if ($line[0] == '[' && substr($line, -1) == ']') { $curr = substr($l                                                                                                 ine, 1, -1); $ini[$curr] = []; }
+            else { $parts = explode('=', $line, 2); if (count($parts) == 2) $ini                                                                                                 [$curr][trim($parts[0])] = trim(trim($parts[1]), '"\''); }
+        }
+        return $ini;
+    }
+    $ini = parse_svx_conf('/etc/svxlink/svxlink.conf');
+    $ref = $ini['ReflectorLogic'] ?? []; $simp = $ini['SimplexLogic'] ?? []; $gl                                                                                                 ob = $ini['GLOBAL'] ?? []; $el = $ini['EchoLink'] ?? [];
+
+    $vals = [
+        'Callsign' => $ref['CALLSIGN'] ?? 'N0CALL', 'Host' => $ref['HOSTS'] ?? '                                                                                                 ', 'Port' => $ref['HOST_PORT'] ?? '', 'Password' => $ref['AUTH_KEY'] ?? '',
+        'DefaultTG' => $ref['DEFAULT_TG'] ?? '0', 'MonitorTGs' => $ref['MONITOR_                                                                                                 TGS'] ?? '', 'TgTimeout' => $ref['TG_SELECT_TIMEOUT'] ?? '60',
+        'TmpTimeout' => $ref['TMP_MONITOR_TIMEOUT'] ?? '3600', 'Modules' => $sim                                                                                                 p['MODULES'] ?? 'Help,Parrot,EchoLink',
+        'Beep3Tone' => $ref['TGSTBEEP_ENABLE'] ?? '0', 'AnnounceTG' => $ref['TGR                                                                                                 EANON_ENABLE'] ?? '0', 'RefStatusInfo' => $ref['REFCON_ENABLE'] ?? '0',
+        'RogerBeep' => $simp['RGR_SOUND_ALWAYS'] ?? '0',
+    ];
+    $vals_el = [
+        'Callsign' => $el['CALLSIGN'] ?? $vals['Callsign'], 'Password' => $el['P                                                                                                 ASSWORD'] ?? '', 'Sysop' => $el['SYSOPNAME'] ?? '',
+        'Location' => $el['LOCATION'] ?? '', 'Desc' => $el['DESCRIPTION'] ?? '',                                                                                                  'Proxy' => $el['PROXY_SERVER'] ?? '',
+        'ModTimeout' => $el['TIMEOUT'] ?? '60', 'IdleTimeout' => $el['LINK_IDLE_                                                                                                 TIMEOUT'] ?? '300',
+    ];
+
+    $jsonFile = '/var/www/html/radio_config.json';
+    $radio = ["rx" => "432.8500", "tx" => "432.8500", "ctcss" => "0000", "sq" =>                                                                                                  "2"];
+    if (file_exists($jsonFile)) { $loaded = json_decode(file_get_contents($jsonF                                                                                                 ile), true); if ($loaded) $radio = array_merge($radio, $loaded); }
+
+    // --- AKCJE SYSTEMOWE ---
+    if (isset($_POST['save_svx_full'])) {
+        $newData = $_POST; unset($newData['save_svx_full'], $newData['active_tab                                                                                                 ']); file_put_contents('/tmp/svx_new_settings.json', json_encode($newData));
+        shell_exec('sudo /usr/bin/python3 /usr/local/bin/update_svx_full.py 2>&1                                                                                                 '); shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &');
+        echo "<div class='alert alert-success'>Zapisano! Restart...</div><meta h                                                                                                 ttp-equiv='refresh' content='3'>";
+    }
+    if (isset($_POST['save_radio'])) {
+        $newRadio = ["rx"=>$_POST['rx'], "tx"=>$_POST['tx'], "ctcss"=>$_POST['ct                                                                                                 css'], "sq"=>$_POST['sq']]; file_put_contents($jsonFile, json_encode($newRadio))                                                                                                 ; $radio = $newRadio;
+        shell_exec('sudo /usr/bin/systemctl stop svxlink'); sleep(1);
+        $cmd = "sudo /usr/bin/python3 /usr/local/bin/setup_radio.py ".escapeshel                                                                                                 larg($radio['rx'])." ".escapeshellarg($radio['tx'])." ".escapeshellarg($radio['c                                                                                                 tcss'])." ".escapeshellarg($radio['sq'])." 2>&1";
+        $out = shell_exec($cmd); shell_exec('sudo /usr/bin/systemctl start svxli                                                                                                 nk'); echo "<div class='alert alert-success'>Radio: $out</div>";
+    }
+
+    // ZASILANIE
+    if (isset($_POST['restart_srv'])) { shell_exec('sudo /usr/bin/systemctl rest                                                                                                 art svxlink > /dev/null 2>&1 &'); echo "<div class='alert alert-success'>Restart                                                                                                  Usługi...</div>"; }
+    if (isset($_POST['reboot_device'])) { shell_exec('sudo /usr/sbin/reboot > /d                                                                                                 ev/null 2>&1 &'); echo "<div class='alert alert-warning'>🔄 Reboot...</div>"; }
+    if (isset($_POST['shutdown_device'])) { shell_exec('sudo /usr/sbin/shutdown                                                                                                  -h now > /dev/null 2>&1 &'); echo "<div class='alert alert-error'>🛑 Shutdown...                                                                                                 </div>"; }
+    if (isset($_POST['auto_proxy'])) { $out = shell_exec("sudo /usr/local/bin/pr                                                                                                 oxy_hunter.py 2>&1"); echo "<div class='alert alert-warning'><strong>♻️ Auto-Prox                                                                                                 y:</strong><br><small>$out</small></div><meta http-equiv='refresh' content='3'>"                                                                                                 ; }
+
+    $wifi_output = "";
+    if (isset($_POST['wifi_scan'])) { shell_exec('sudo nmcli dev wifi rescan');                                                                                                  $raw = shell_exec('sudo nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list 2>&1'); $                                                                                                 lines = explode("\n", $raw); foreach($lines as $line) { if(empty($line)) continu                                                                                                 e; $parts = explode(':', $line); $sec = array_pop($parts); $sig = array_pop($par                                                                                                 ts); $ssid = implode(':', $parts); if(!empty($ssid)) $wifi_scan_results[$ssid] =                                                                                                  ['ssid'=>$ssid, 'signal'=>$sig, 'sec'=>$sec]; } usort($wifi_scan_results, funct                                                                                                 ion($a, $b) { return $b['signal'] - $a['signal']; }); }
+    if (isset($_POST['wifi_list'])) { $wifi_output = shell_exec('sudo nmcli con                                                                                                  show 2>&1'); }
+    if (isset($_POST['wifi_connect'])) { $ssid = escapeshellarg($_POST['ssid']);                                                                                                  $pass = escapeshellarg($_POST['pass']); $wifi_output = shell_exec("sudo nmcli d                                                                                                 ev wifi connect $ssid password $pass 2>&1"); }
+    if (isset($_POST['wifi_delete'])) { $ssid = escapeshellarg($_POST['ssid']);                                                                                                  $wifi_output = shell_exec("sudo nmcli con delete $ssid 2>&1"); }
+?>
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotspot SQ7UTP</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #121212; c                                                                                                 olor: #e0e0e0; margin: 0; padding: 20px; padding-bottom: 50px; }
+        .container { max-width: 1100px; margin: 0 auto; background: #1e1e1e; bor                                                                                                 der-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        header { background: #263238; padding: 20px; text-align: center; border-                                                                                                 bottom: 3px solid #4CAF50; }
+        h1 { margin: 0; color: #fff; font-size: 24px; letter-spacing: 1px; }
+
+        /* STATUS HEADER STYLES */
+        .status-bar { margin-top: 10px; font-size: 14px; display: flex; justify-                                                                                                 content: center; align-items: center; gap: 10px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: in                                                                                                 line-block; }
+        .status-dot.green { background-color: #4CAF50; box-shadow: 0 0 8px #4CAF                                                                                                 50; }
+        .status-dot.red { background-color: #F44336; box-shadow: 0 0 8px #F44336                                                                                                 ; }
+        .status-dot.blink { animation: blink 1.5s infinite; }
+        .status-text { font-weight: bold; }
+        .status-text.active { color: #4CAF50; }
+        .status-text.inactive { color: #F44336; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opaci                                                                                                 ty: 1; } }
+
+        .tabs { display: flex; background: #333; flex-wrap: wrap; }
+        .tab-btn { flex: 1; padding: 15px; background: #2d2d2d; color: #aaa; bor                                                                                                 der: none; cursor: pointer; border-bottom: 3px solid transparent; font-size: 14p                                                                                                 x; font-weight: 600; transition: 0.3s; border-right: 1px solid #444; min-width:                                                                                                  90px; }
+        .tab-btn:hover { background: #333; color: #fff; }
+        .tab-btn.active { background: #1e1e1e; color: #4CAF50; border-bottom: 3p                                                                                                 x solid #4CAF50; }
+        .tab-content { display: none; background: #1e1e1e; padding: 25px; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* NODES STYLES (Grid Kafelków) */
+        .nodes-container { display: grid; grid-template-columns: repeat(auto-fil                                                                                                 l, minmax(130px, 1fr)); gap: 10px; margin-top: 15px; }
+        .node-item { background: #2a2a2a; border: 1px solid #444; border-radius:                                                                                                  5px; padding: 15px 10px; text-align: center; transition: 0.2s; display: flex; f                                                                                                 lex-direction: column; align-items: center; justify-content: center; }
+        .node-item:hover { border-color: #4CAF50; background: #333; transform: s                                                                                                 cale(1.02); }
+        .node-icon { font-size: 24px; margin-bottom: 5px; }
+        .node-name { font-weight: bold; color: #eee; font-size: 14px; word-break                                                                                                 : break-word; }
+
+        /* DTMF & AUDIO STYLES */
+        .dtmf-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px                                                                                                 ; }
+        @media (max-width: 700px) { .dtmf-columns { grid-template-columns: 1fr;                                                                                                  } }
+        .panel-box { background: #252525; padding: 15px; border-radius: 5px; bor                                                                                                 der: 1px solid #333; margin-bottom: 20px; }
+        .panel-title { color: #4CAF50; border-bottom: 1px solid #444; padding-bo                                                                                                 ttom: 5px; margin-top: 0; font-size: 16px; }
+        .panel-title.blue { color: #2196F3; }
+        .panel-title.green { color: #4CAF50; }
+        .macro-grid { display: grid; grid-template-columns: repeat(auto-fill, mi                                                                                                 nmax(100px, 1fr)); gap: 10px; }
+        .macro-btn { padding: 12px; background: #263238; border: 1px solid #3747                                                                                                 4F; color: #ddd; border-radius: 5px; cursor: pointer; font-size: 13px; font-weig                                                                                                 ht: bold; width: 100%; box-sizing: border-box;}
+        .macro-btn:active { background: #4CAF50; color: #000; transform: scale(0                                                                                                 .98); }
+        .macro-btn.green { border-color: #4CAF50; color: #fff; }
+        .macro-btn.red { border-color: #F44336; color: #F44336; }
+        .macro-btn.orange { border-color: #FF9800; color: #FF9800; }
+        .instr-list { font-size: 13px; color: #ccc; line-height: 1.6; padding-le                                                                                                 ft: 20px; margin: 0; }
+        .instr-list li { margin-bottom: 5px; }
+        .hl-code { font-family: monospace; background: #333; padding: 2px 5px; b                                                                                                 order-radius: 3px; color: #4CAF50; font-weight: bold; }
+        .node-input-group { display: flex; gap: 5px; margin-bottom: 10px; }
+        .node-input { flex: 1; padding: 10px; background: #000; border: 1px soli                                                                                                 d #444; color: #fff; border-radius: 4px; font-family: monospace; font-size: 16px                                                                                                 ; text-align: center; }
+
+        /* KEYPAD */
+        .dtmf-display { background: #000; color: #0f0; font-family: monospace; f                                                                                                 ont-size: 28px; padding: 15px; text-align: right; border: 2px solid #444; border                                                                                                 -radius: 8px; margin: 0 auto 20px auto; max-width: 320px; letter-spacing: 3px; m                                                                                                 in-height: 35px; box-shadow: inset 0 0 10px #000; }
+        .dtmf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap:                                                                                                  12px; max-width: 320px; margin: 0 auto; }
+        .dtmf-btn { padding: 20px; font-size: 24px; background: #333; border: 1p                                                                                                 x solid #444; color: #fff; border-radius: 8px; cursor: pointer; transition: 0.1s                                                                                                 ; user-select: none; }
+        .dtmf-btn:active { background: #4CAF50; transform: scale(0.95); }
+        .dtmf-send { background: #4CAF50; color: #fff; border-color: #388E3C; fo                                                                                                 nt-weight: bold; font-size: 18px; }
+        .dtmf-clear { background: #e53935; color: #fff; border-color: #d32f2f; f                                                                                                 ont-weight: bold; font-size: 18px; }
+        .dtmf-tg { background: #2196F3; color: #fff; border-color: #1976D2; font                                                                                                 -weight: bold; font-size: 18px; }
+
+        /* AUDIO CARDS & SLIDERS */
+        .audio-card { background: #252525; padding: 15px; border-radius: 5px; ma                                                                                                 rgin-bottom: 20px; border: 1px solid #333; }
+        .audio-card.highlight { border-color: #4CAF50; background: #2a302a; }
+        .audio-title { color: #2196F3; border-bottom: 1px solid #444; padding-bo                                                                                                 ttom: 5px; margin-top: 0; display: flex; justify-content: space-between; }
+        .audio-title.green { color: #4CAF50; }
+        .slider-group { margin-bottom: 10px; }
+        .slider-header { display: flex; justify-content: space-between; font-siz                                                                                                 e: 12px; font-weight: bold; margin-bottom: 5px; color:#bbb; }
+        .slider-val { color: #4CAF50; font-family: monospace; }
+        input[type=range] { -webkit-appearance: none; width: 100%; height: 6px;                                                                                                  background: #444; outline: none; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appe                                                                                                 arance: none; width: 16px; height: 16px; background: #2196F3; cursor: pointer; b                                                                                                 order-radius: 50%; }
+        .switch-row { display: flex; justify-content: space-between; align-items                                                                                                 : center; background: #2a2a2a; padding: 8px; margin-bottom: 5px; border-radius:                                                                                                  4px; border: 1px solid #333; }
+        .switch-label { font-size: 13px; font-weight: bold; }
+        input[type=checkbox] { transform: scale(1.3); accent-color: #4CAF50; cur                                                                                                 sor: pointer; }
+
+        /* TELEMETRY BAR */
+        .telemetry-row { display: flex; gap:15px; margin-bottom: 15px; backgroun                                                                                                 d:#1a1a1a; padding:10px; border-radius:5px; border:1px solid #333; flex-wrap: wr                                                                                                 ap;}
+        .t-box { flex:1; text-align:center; min-width: 80px;}
+        .t-label { font-size:10px; color:#888; margin-bottom:5px; text-transform                                                                                                 :uppercase;}
+        .t-val { font-size:12px; font-weight:bold; color:#fff; }
+        .progress-bg { background:#333; height:6px; border-radius:3px; overflow:                                                                                                 hidden; margin-top:5px; }
+        .progress-fill { height:100%; background:#4CAF50; transition:width 0.5s;                                                                                                  }
+        .p-red { background:#F44336; }
+        .p-orange { background:#FF9800; }
+
+        /* COMMON */
+        .live-box { background: #252525; border: 2px solid #444; border-radius:                                                                                                  8px; padding: 0 20px; text-align: center; margin-bottom: 30px; transition: 0.3s;                                                                                                  height: 160px; display: flex; flex-direction: column; justify-content: center;                                                                                                  align-items: center; }
+        .live-box.talking { background: rgba(76, 175, 80, 0.1); border-color: #4                                                                                                 CAF50; box-shadow: 0 0 20px rgba(76, 175, 80, 0.2); }
+        .live-callsign { font-size: 36px; font-weight: bold; color: #fff; letter                                                                                                 -spacing: 2px; line-height: 1.2; margin: 5px 0; }
+        .live-tg { font-size: 18px; color: #aaa; font-weight: bold; margin-top:5                                                                                                 px; }
+        .live-status { font-size: 12px; color: #666; text-transform: uppercase;                                                                                                  letter-spacing: 2px; }
+        .talking .live-callsign { color: #4CAF50; text-shadow: 0 0 10px #4CAF50;                                                                                                  }
+        .talking .live-status { color: #4CAF50; }
+        .lh-table { width: 100%; border-collapse: collapse; margin-top: 10px; fo                                                                                                 nt-size: 14px; }
+        .lh-table th { text-align: left; padding: 10px; background: #252525; col                                                                                                 or: #888; border-bottom: 2px solid #444; }
+        .lh-table td { padding: 10px; border-bottom: 1px solid #333; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 13px; color: #bbb                                                                                                 ; font-weight: bold; }
+        input[type="text"], input[type="password"], select { width: 100%; paddin                                                                                                 g: 10px; background: #2c2c2c; border: 1px solid #444; color: #fff; border-radius                                                                                                 : 4px; box-sizing: border-box; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; fon                                                                                                 t-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition:                                                                                                  0.2s; }
+        .btn-green { background-color: #4CAF50; color: white; }
+        .btn-red { background-color: #e53935; color: white; }
+        .btn-blue { background-color: #2196F3; color: white; }
+        .btn-orange { background-color: #FF9800; color: white; }
+        .info-panel { display: grid; grid-template-columns: repeat(auto-fit, min                                                                                                 max(130px, 1fr)); gap: 10px; margin-bottom: 20px; padding: 15px; background: #25                                                                                                 2525; border-bottom: 1px solid #333; }
+        .info-box { text-align: center; padding: 5px; background: #2a2a2a; borde                                                                                                 r-radius: 4px; }
+        .info-label { font-size: 10px; color: #888; text-transform: uppercase; }
+        .info-value { font-size: 13px; font-weight: bold; color: #eee; margin-to                                                                                                 p: 3px; word-break: break-word; }
+        .hl { color: #4CAF50; }
+        .log-box { background: #000; color: #0f0; padding: 15px; height: 500px;                                                                                                  overflow-y: auto; font-family: monospace; font-size: 12px; border: 1px solid #44                                                                                                 4; white-space: pre-wrap; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; text-al                                                                                                 ign: center; }
+        .alert-success { background: rgba(76,175,80,0.2); border: 1px solid #4CA                                                                                                 F50; color: #4CAF50; }
+        .alert-error { background: rgba(244,67,54,0.2); border: 1px solid #F4433                                                                                                 6; color: #F44336; }
+        .alert-warning { background: rgba(255,152,0,0.2); border: 1px solid #FF9                                                                                                 800; color: #FF9800; }
+
+        /* FOOTER STYLE */
+        .main-footer {
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            margin-top: 40px;
+            padding-bottom: 10px;
+            line-height: 1.6;
+        }
+        .callsign-blue {
+            color: #2196F3;
+            font-weight: bold;
+        }
+
+        /* HELP STYLES */
+        .help-section { margin-bottom: 30px; border-bottom: 1px solid #333; padd                                                                                                 ing-bottom: 20px; }
+        .help-title { color: #4CAF50; font-size: 18px; margin-bottom: 10px; disp                                                                                                 lay: flex; align-items: center; }
+        .help-icon { margin-right: 10px; font-size: 22px; }
+        .help-text { font-size: 14px; color: #ccc; line-height: 1.6; }
+        .help-step { background: #2a2a2a; padding: 10px; border-left: 3px solid                                                                                                  #2196F3; margin: 10px 0; font-size: 13px; }
+        .help-warn { background: rgba(244,67,54,0.1); border-left: 3px solid #F4                                                                                                 4336; padding: 10px; margin: 10px 0; font-size: 13px; color: #ff8a80; }
+
+        /* ECHOLINK STATUS */
+        #el-live-status {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            text-align: center;
+            background: #2a2a2a;
+            color: #888;
+            border: 1px solid #444;
+        }
+        #el-live-status.el-connected {
+            background: rgba(76,175,80,0.15);
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+        #el-live-status.el-disconnected {
+            background: rgba(244,67,54,0.15);
+            border-color: #F44336;
+            color: #F44336;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Hotspot <?php echo $vals['Callsign']; ?></h1>
+        <div class="status-bar">
+            <span id="main-status-dot" class="status-dot red"></span>
+            <span id="main-status-text" class="status-text inactive">SYSTEM STAR                                                                                                 T...</span>
+        </div>
+    </header>
+
+    <div class="telemetry-row">
+        <div class="t-box">
+            <div class="t-label">CPU Temp</div>
+            <div class="t-val" id="t-temp">...</div>
+            <div class="progress-bg"><div class="progress-fill" id="t-temp-bar"                                                                                                  style="width: 0%;"></div></div>
+        </div>
+        <div class="t-box">
+            <div class="t-label">RAM Used</div>
+            <div class="t-val" id="t-ram">...</div>
+            <div class="progress-bg"><div class="progress-fill" id="t-ram-bar" s                                                                                                 tyle="width: 0%;"></div></div>
+        </div>
+        <div class="t-box">
+            <div class="t-label">Disk Used</div>
+            <div class="t-val" id="t-disk">...</div>
+            <div class="progress-bg"><div class="progress-fill" id="t-disk-bar"                                                                                                  style="width: 0%;"></div></div>
+        </div>
+        <div class="t-box">
+            <div class="t-label">Network</div>
+            <div class="t-val" id="t-net-type">...</div>
+            <div style="font-size:9px; color:#aaa;" id="t-ip">...</div>
+        </div>
+        <div class="t-box">
+            <div class="t-label">Hardware</div>
+            <div class="t-val" id="t-hw" style="font-size:10px; margin-top:5px;"                                                                                                 >...</div>
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <div class="info-box"><div class="info-label">Logiki</div><div class="in                                                                                                 fo-value" style="font-size:11px;"><?php echo str_replace(',', ', ', $glob['LOGIC                                                                                                 S'] ?? '-'); ?></div></div>
+        <div class="info-box"><div class="info-label">Moduły</div><div class="in                                                                                                 fo-value" style="font-size:11px;"><?php echo $vals['Modules']; ?></div></div>
+        <div class="info-box"><div class="info-label">TG Default</div><div class                                                                                                 ="info-value hl"><?php echo $vals['DefaultTG']; ?></div></div>
+        <div class="info-box"><div class="info-label">TG Active</div><div class=                                                                                                 "info-value hl" id="tg-active">---</div></div>
+        <div class="info-box"><div class="info-label">Reflector</div><div class=                                                                                                 "info-value" id="ref-status">---</div></div>
+        <div class="info-box"><div class="info-label">Uptime</div><div class="in                                                                                                 fo-value" style="font-size:11px;"><?php echo shell_exec("uptime -p"); ?></div></                                                                                                 div>
+    </div>
+
+    <div class="tabs">
+        <button id="btn-Dashboard" class="tab-btn active" onclick="openTab(event                                                                                                 , 'Dashboard')">Dashboard</button>
+        <button id="btn-Nodes" class="tab-btn" onclick="openTab(event, 'Nodes')"                                                                                                 >Nodes</button>
+        <button id="btn-DTMF" class="tab-btn" onclick="openTab(event, 'DTMF')">D                                                                                                 TMF</button>
+        <button id="btn-Radio" class="tab-btn" onclick="openTab(event, 'Radio')"                                                                                                 >Radio</button>
+        <button id="btn-Audio" class="tab-btn" onclick="openTab(event, 'Audio')"                                                                                                 >Audio</button>
+        <button id="btn-SvxConfig" class="tab-btn" onclick="openTab(event, 'SvxC                                                                                                 onfig')">Config</button>
+        <button id="btn-WiFi" class="tab-btn" onclick="openTab(event, 'WiFi')">W                                                                                                 iFi</button>
+        <button id="btn-Power" class="tab-btn" onclick="openTab(event, 'Power')"                                                                                                 >Zasilanie</button>
+        <button id="btn-Logs" class="tab-btn" onclick="openTab(event, 'Logs')">L                                                                                                 ogi</button>
+        <button id="btn-Help" class="tab-btn" onclick="openTab(event, 'Help')">P                                                                                                 omoc</button>
+    </div>
+
+    <div id="Dashboard" class="tab-content active">
+        <div style="display:flex; justify-content:center; gap:40px; margin-top:1                                                                                                 0px; margin-bottom:20px; text-align:center; border-bottom: 1px solid #333; paddi                                                                                                 ng-bottom: 20px;">
+            <div><div style="font-size:30px;">📡</div><p style="margin:5px 0; fo                                                                                                 nt-size:12px;">Freq: <b><?php echo $radio['rx']; ?></b></p></div>
+            <div><div style="font-size:30px;">🌍</div><p style="margin:5px 0; fo                                                                                                 nt-size:12px;">Host: <b><?php echo $vals['Host']; ?></b></p></div>
+            <div><div style="font-size:30px;">🆔</div><p style="margin:5px 0; fo                                                                                                 nt-size:12px;">Znak: <b><?php echo $vals['Callsign']; ?></b></p></div>
+        </div>
+        <div id="live-monitor" class="live-box"><div class="live-status">STAN: C                                                                                                 ZUWANIE (Standby)</div><div class="live-callsign">---</div><div class="live-tg">                                                                                                 </div></div>
+        <h3 style="color: #4CAF50;">Ostatnio Słyszani (Last Heard)</h3>
+        <table class="lh-table"><thead><tr><th>Godzina</th><th>TG</th><th>Znak</                                                                                                 th></tr></thead><tbody id="lh-content"><tr><td colspan="3">Ładowanie...</td></tr                                                                                                 ></tbody></table>
+    </div>
+
+    <div id="DTMF" class="tab-content">
+        <div class="dtmf-columns">
+            <div class="panel-box">
+                <h4 class="panel-title">Reflector / Sieć FM</h4>
+                <div class="macro-grid">
+                    <button onclick="sendInstant('*91260#')" class="macro-btn">T                                                                                                 G 260</button>
+                    <button onclick="sendInstant('*912600#')" class="macro-btn">                                                                                                 TG 2600</button>
+                    <button onclick="sendInstant('*912607#')" class="macro-btn">                                                                                                 TG 2607</button>
+                    <button onclick="sendInstant('*91112#')" class="macro-btn">T                                                                                                 G 112</button>
+                    <button onclick="sendInstant('910#')" class="macro-btn red">                                                                                                 Odłącz (910)</button>
+                    <button onclick="sendInstant('*#')" class="macro-btn">Status                                                                                                  (*#)</button>
+                </div>
+            </div>
+
+            <div class="panel-box">
+                <h4 class="panel-title blue">EchoLink (Moduł 2)</h4>
+                <div style="margin-bottom:15px; border-bottom:1px solid #444; pa                                                                                                 dding-bottom:15px;">
+                    <button onclick="sendInstant('2#')" class="macro-btn green"                                                                                                  style="margin-bottom:10px;">1. Aktywuj Moduł (2#)</button>
+                    <div class="node-input-group">
+                        <input type="text" id="el-node-id" class="node-input" pl                                                                                                 aceholder="Nr Noda (np. 459342)">
+                        <button onclick="connectEchoLink()" class="macro-btn blu                                                                                                 e" style="width: auto;">Połącz</button>
+                    </div>
+                    <div class="macro-grid">
+                        <button onclick="sendInstant('9999#')" class="macro-btn"                                                                                                 >Test Echo (9999)</button>
+                        <button onclick="sendInstant('#')" class="macro-btn red"                                                                                                 >Rozłącz (#)</button>
+                    </div>
+                </div>
+                <div id="el-live-status">Sprawdzanie statusu...</div>
+            </div>
+
+
+            <div class="panel-box" style="grid-column: 1 / -1; border-color: #FF                                                                                                 9800;">
+                <h4 class="panel-title" style="color: #FF9800; border-color: #FF                                                                                                 9800;">🦜 Papuga (Test Audio)</h4>
+                <div style="display: flex; gap: 20px; align-items: center; flex-                                                                                                 wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <div class="macro-grid">
+                            <button onclick="sendInstant('1#')" class="macro-btn                                                                                                  orange" style="font-size: 16px; padding: 15px;">▶️ Włącz Papugę (1#)</button>
+                            <button onclick="sendInstant('#')" class="macro-btn                                                                                                  red" style="font-size: 16px; padding: 15px;">⏹️ Wyłącz / Stop (#)</button>
+                        </div>
+                    </div>
+                    <div style="flex: 1; font-size: 13px; color: #ccc; backgroun                                                                                                 d: #222; padding: 10px; border-radius: 5px; border-left: 3px solid #FF9800;">
+                        <strong>Jak używać?</strong>
+                        <ol style="margin: 5px 0; padding-left: 20px; line-heigh                                                                                                 t: 1.6;">
+                            <li>Kliknij <span style="color:#FF9800; font-weight:                                                                                                 bold;">Włącz Papugę</span>. Usłyszysz komunikat "Moduł Papuga".</li>
+                            <li>Wciśnij PTT w radiu, powiedz kilka słów ("Test,                                                                                                  raz, dwa...") i puść PTT.</li>
+                            <li>Hotspot powinien odesłać Twój głos. Jeśli słyszy                                                                                                 sz siebie czysto – audio jest OK.</li>
+                            <li>Kliknij <span style="color:#F44336; font-weight:                                                                                                 bold;">Wyłącz</span>, aby zakończyć test.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h3 style="border-top:1px solid #444; paddingTop:20px;">Klawiatura Numer                                                                                                 yczna</h3>
+        <div class="dtmf-display" id="dtmf-screen">...</div>
+        <div class="dtmf-grid"><button onclick="typeKey('1')" class="dtmf-btn">1                                                                                                 </button><button onclick="typeKey('2')" class="dtmf-btn">2</button><button oncli                                                                                                 ck="typeKey('3')" class="dtmf-btn">3</button><button onclick="typeKey('4')" clas                                                                                                 s="dtmf-btn">4</button><button onclick="typeKey('5')" class="dtmf-btn">5</button                                                                                                 ><button onclick="typeKey('6')" class="dtmf-btn">6</button><button onclick="type                                                                                                 Key('7')" class="dtmf-btn">7</button><button onclick="typeKey('8')" class="dtmf-                                                                                                 btn">8</button><button onclick="typeKey('9')" class="dtmf-btn">9</button><button                                                                                                  onclick="typeKey('*')" class="dtmf-btn">*</button><button onclick="typeKey('0')                                                                                                 " class="dtmf-btn">0</button><button onclick="typeKey('#')" class="dtmf-btn">#</                                                                                                 button><button onclick="clearKey()" class="dtmf-btn dtmf-clear">C</button><butto                                                                                                 n onclick="submitTG()" class="dtmf-btn dtmf-tg">TG</button><button onclick="subm                                                                                                 itKey()" class="dtmf-btn dtmf-send">TX</button></div>
+        <p style="font-size:12px; color:#888; text-align:center;"><b>C</b>=Kasuj                                                                                                 , <b>TG</b>=Ustaw Grupę (*91..#), <b>TX</b>=Wyślij Kod</p>
+    </div>
+
+    <div id="Audio" class="tab-content">
+        <?php echo isset($audio_msg) ? $audio_msg : ''; ?>
+        <h3>Mikser Audio</h3>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" valu                                                                                                 e="Audio">
+            <div class="form-grid">
+                <div class="audio-card highlight">
+                    <h4 class="audio-title green">Odbiór (RX)</h4>
+                    <div class="switch-row"><div class="switch-label">MIC1</div>                                                                                                 <input type="checkbox" name="Mic1_Cap_Sw" value="1" <?php if($audio['Mic1_Cap_Sw                                                                                                 ']) echo "checked"; ?>></div>
+                    <div class="slider-group"><div class="slider-header"><span>M                                                                                                 ic1 Boost</span><span class="slider-val"><?php echo $audio['Mic1_Boost']; ?>/7</                                                                                                 span></div><input type="range" name="boost1_vol" min="0" max="7" value="<?php ec                                                                                                 ho $audio['Mic1_Boost']; ?>" oninput="document.getElementById('v_b1').innerText=                                                                                                 this.value"></div>
+                    <div class="slider-group"><div class="slider-header"><span>A                                                                                                 DC Gain</span><span class="slider-val"><?php echo $audio['ADC_Gain']; ?>/7</span                                                                                                 ></div><input type="range" name="adc_vol" min="0" max="7" value="<?php echo $aud                                                                                                 io['ADC_Gain']; ?>"></div>
+                </div>
+                <div class="audio-card">
+                    <h4 class="audio-title">Inne Wejścia</h4>
+                    <div class="switch-row"><div class="switch-label">MIC2</div>                                                                                                 <input type="checkbox" name="Mic2_Cap_Sw" value="1" <?php if($audio['Mic2_Cap_Sw                                                                                                 ']) echo "checked"; ?>></div>
+                    <div class="slider-group"><div class="slider-header"><span>M                                                                                                 ic2 Boost</span><span class="slider-val"><?php echo $audio['Mic2_Boost']; ?>/7</                                                                                                 span></div><input type="range" name="boost2_vol" min="0" max="7" value="<?php ec                                                                                                 ho $audio['Mic2_Boost']; ?>"></div>
+                    <div class="switch-row"><div class="switch-label">Line In</d                                                                                                 iv><input type="checkbox" name="LineIn_Cap_Sw" value="1" <?php if($audio['LineIn                                                                                                 _Cap_Sw']) echo "checked"; ?>></div>
+                    <div class="switch-row"><div class="switch-label">Mixer</div                                                                                                 ><input type="checkbox" name="Mixer_Cap_Sw" value="1" <?php if($audio['Mixer_Cap                                                                                                 _Sw']) echo "checked"; ?>></div>
+                </div>
+                <div class="audio-card highlight" style="border-color:#2196F3;">
+                    <h4 class="audio-title" style="color:#2196F3;">Nadawanie (TX                                                                                                 )</h4>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">Line Out</div><input type="checkbox" name="LineOut_Sw" value="1"                                                                                                  <?php if($audio['LineOut_Sw']) echo "checked"; ?>></div><div class="slider-head                                                                                                 er"><span>Line Out Volume</span><span class="slider-val"><?php echo $audio['Line                                                                                                 Out_Vol']; ?>/31</span></div><input type="range" name="out_vol" min="0" max="31"                                                                                                  value="<?php echo $audio['LineOut_Vol']; ?>"></div>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">DAC</div><input type="checkbox" name="DAC_Sw" value="1" <?php if                                                                                                 ($audio['DAC_Sw']) echo "checked"; ?>></div><div class="slider-header"><span>DAC                                                                                                  Vol</span><span class="slider-val"><?php echo $audio['DAC_Vol']; ?>/63</span></                                                                                                 div><input type="range" name="dac_vol" min="0" max="63" value="<?php echo $audio                                                                                                 ['DAC_Vol']; ?>"></div>
+                </div>
+                <div class="audio-card">
+                    <h4 class="audio-title">Odsłuch (Loopback)</h4>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">Mic1 PB</div><input type="checkbox" name="Mic1_PB_Sw" value="1"                                                                                                  <?php if($audio['Mic1_PB_Sw']) echo "checked"; ?>></div><input type="range" name                                                                                                 ="mic1_pb_vol" min="0" max="7" value="<?php echo $audio['Mic1_PB_Vol']; ?>"></di                                                                                                 v>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">Mic2 PB</div><input type="checkbox" name="Mic2_PB_Sw" value="1"                                                                                                  <?php if($audio['Mic2_PB_Sw']) echo "checked"; ?>></div><input type="range" name                                                                                                 ="mic2_pb_vol" min="0" max="7" value="<?php echo $audio['Mic2_PB_Vol']; ?>"></di                                                                                                 v>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">LineIn PB</div><input type="checkbox" name="LineIn_PB_Sw" value=                                                                                                 "1" <?php if($audio['LineIn_PB_Sw']) echo "checked"; ?>></div><input type="range                                                                                                 " name="linein_pb_vol" min="0" max="7" value="<?php echo $audio['LineIn_PB_Vol']                                                                                                 ; ?>"></div>
+                </div>
+            </div>
+            <button type="submit" name="save_audio" class="btn btn-green">Zapisz                                                                                                  Ustawienia Audio</button>
+        </form>
+        <hr style="border:0; border-top:1px solid #444; margin:30px 0;">
+        <form method="post"><input type="hidden" name="active_tab" class="active                                                                                                 -tab-input" value="Audio"><button type="submit" name="reset_audio_defaults" clas                                                                                                 s="btn btn-red" onclick="return confirm('UWAGA: To przywróci ustawienia audio do                                                                                                  zdefiniowanych wartości domyślnych i zrestartuje SvxLink. Połączenie zostanie p                                                                                                 rzerwane na chwilę. Kontynuować?')">⚠️ Przywróć Domyślne Audio (Z pliku)</button>                                                                                                 </form>
+    </div>
+
+    <div id="Radio" class="tab-content">
+        <h3>Ustawienia Radia</h3>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" valu                                                                                                 e="Radio">
+            <div class="form-grid">
+                <div class="form-group"><label>RX Freq</label><input type="text"                                                                                                  name="rx" value="<?php echo $radio['rx']; ?>"></div>
+                <div class="form-group"><label>TX Freq</label><input type="text"                                                                                                  name="tx" value="<?php echo $radio['tx']; ?>"></div>
+                <div class="form-group">
+                    <label>CTCSS (Ton blokady)</label>
+                    <select name="ctcss">
+                        <?php
+                            foreach($CTCSS_MAP as $code => $label) {
+                                $sel = ($radio['ctcss'] == $code) ? 'selected' :                                                                                                  '';
+                                echo "<option value='$code' $sel>$label ($code)<                                                                                                 /option>";
+                            }
+                        ?>
+                    </select>
+                </div>
+                <div class="form-group"><label>Squelch</label><select name="sq">                                                                                                 <?php foreach([1,2,3,4,6,8] as $s) echo "<option value='$s' ".($radio['sq']==$s?                                                                                                 'selected':'').">$s</option>"; ?></select></div>
+            </div>
+            <button type="submit" name="save_radio" class="btn btn-green">Progra                                                                                                 muj Radio</button>
+        </form>
+    </div>
+
+    <div id="SvxConfig" class="tab-content">
+        <h3>Konfiguracja SvxLink</h3>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" valu                                                                                                 e="SvxConfig">
+            <div class="form-grid">
+                <div class="panel-box">
+                    <h4 class="panel-title">Reflector (FM Poland)</h4>
+                    <div class="form-group"><label>Znak Noda</label><input type=                                                                                                 "text" name="Callsign" value="<?php echo $vals['Callsign']; ?>"></div>
+                    <div class="form-group"><label>Hasło</label><input type="pas                                                                                                 sword" name="Password" value="<?php echo $vals['Password']; ?>"></div>
+                    <div class="form-group"><label>Host</label><input type="text                                                                                                 " name="Host" value="<?php echo $vals['Host']; ?>"></div>
+                    <div class="form-group"><label>Domyślna Grupa (TG)</label><i                                                                                                 nput type="text" name="DefaultTG" value="<?php echo $vals['DefaultTG']; ?>"></di                                                                                                 v>
+                </div>
+                <div class="panel-box">
+                    <h4 class="panel-title blue">EchoLink</h4>
+                    <div class="form-group"><label>Znak EchoLink</label><input t                                                                                                 ype="text" name="EL_Callsign" value="<?php echo $vals_el['Callsign']; ?>"></div>
+                    <div class="form-group"><label>Hasło EchoLink</label><input                                                                                                  type="password" name="EL_Password" value="<?php echo $vals_el['Password']; ?>"><                                                                                                 /div>
+                    <div class="form-group"><label>Nazwa Sysop (Widoczna)</label                                                                                                 ><input type="text" name="EL_Sysop" value="<?php echo $vals_el['Sysop']; ?>"></d                                                                                                 iv>
+                    <div class="form-group"><label>Opis Stacji</label><input typ                                                                                                 e="text" name="EL_Desc" value="<?php echo $vals_el['Desc']; ?>"></div>
+                    <div class="form-group"><label>Proxy (IP)</label><input type                                                                                                 ="text" name="EL_ProxyHost" value="<?php echo $vals_el['Proxy']; ?>" placeholder                                                                                                 ="np. 44.31.61.106"><small style="color:#888; font-size:10px;">Zostaw puste aby                                                                                                  wyłączyć proxy.</small></div>
+                    <div style="margin-top:5px; display:flex; gap:10px; align-it                                                                                                 ems:center;">
+                        <button type="submit" name="auto_proxy" class="btn btn-g                                                                                                 reen" style="margin:0; padding:8px; font-size:12px;" onclick="return confirm('Sk                                                                                                 rypt pobierze listę publicznych proxy, znajdzie serwer Ready i zrestartuje SvxLi                                                                                                 nk. Kontynuować?')">♻️ Znajdź i ustaw Auto-Proxy</button>
+                        <a href="http://www.echolink.org/proxylist.jsp" target="                                                                                                 _blank" style="color:#2196F3; text-decoration:underline; font-size:11px;">Lista                                                                                                  WWW</a>
+                    </div>
+                </div>
+
+                <div class="panel-box" style="grid-column: 1 / -1;">
+                    <h4 class="panel-title green">Zaawansowane / Audio</h4>
+                    <div class="form-grid" style="grid-template-columns: repeat(                                                                                                 auto-fit, minmax(150px, 1fr));">
+                        <div class="form-group"><label>TG Timeout (s)</label><in                                                                                                 put type="text" name="TgTimeout" value="<?php echo $vals['TgTimeout']; ?>"></div                                                                                                 >
+                        <div class="form-group"><label>Tmp Timeout (s)</label><i                                                                                                 nput type="text" name="TmpTimeout" value="<?php echo $vals['TmpTimeout']; ?>"></                                                                                                 div>
+                        <div class="form-group"><label>Beep 3-ton</label><select                                                                                                  name="Beep3Tone"><option value="1" <?php if($vals['Beep3Tone']=='1') echo 'sele                                                                                                 cted'; ?>>TAK</option><option value="0" <?php if($vals['Beep3Tone']=='0') echo '                                                                                                 selected'; ?>>NIE</option></select></div>
+                        <div class="form-group"><label>Zapowiedź TG</label><sele                                                                                                 ct name="AnnounceTG"><option value="1" <?php if($vals['AnnounceTG']=='1') echo '                                                                                                 selected'; ?>>TAK</option><option value="0" <?php if($vals['AnnounceTG']=='0') e                                                                                                 cho 'selected'; ?>>NIE</option></select></div>
+                        <div class="form-group"><label>Info Link</label><select                                                                                                  name="RefStatusInfo"><option value="1" <?php if($vals['RefStatusInfo']=='1') ech                                                                                                 o 'selected'; ?>>TAK</option><option value="0" <?php if($vals['RefStatusInfo']==                                                                                                 '0') echo 'selected'; ?>>NIE</option></select></div>
+                        <div class="form-group"><label>Roger Beep</label><select                                                                                                  name="RogerBeep"><option value="1" <?php if($vals['RogerBeep']=='1') echo 'sele                                                                                                 cted'; ?>>TAK</option><option value="0" <?php if($vals['RogerBeep']=='0') echo '                                                                                                 selected'; ?>>NIE</option></select></div>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" name="save_svx_full" class="btn btn-blue">Zapi                                                                                                 sz Wszystko i Restartuj</button>
+        </form>
+    </div>
+
+    <div id="WiFi" class="tab-content">
+        <div class="panel-box" style="text-align:center; margin-bottom:15px;">
+            <h4 class="panel-title blue">Status Połączenia</h4>
+            <div id="wifi-tab-status" style="font-weight:bold; font-size:18px; c                                                                                                 olor:#fff;">Ładowanie...</div>
+            <div id="wifi-tab-ip" style="color:#4CAF50; margin-top:5px;">...</di                                                                                                 v>
+        </div>
+        <h3>Zarządzanie WiFi</h3><form method="post" style="margin-bottom: 20px;                                                                                                 "><input type="hidden" name="active_tab" class="active-tab-input" value="WiFi"><                                                                                                 button type="submit" name="wifi_scan" class="btn btn-blue">Skanuj Sieci</button>                                                                                                 </form><?php if (!empty($wifi_scan_results)): ?><div style="max-height:200px; ov                                                                                                 erflow-y:auto;"><table class="lh-table"><tbody><?php foreach($wifi_scan_results                                                                                                  as $w): ?><tr class="wifi-row" onclick="selectWifi('<?php echo htmlspecialchars(                                                                                                 $w['ssid']); ?>')"><td><b><?php echo $w['ssid']; ?></b></td><td><?php echo $w['s                                                                                                 ignal']; ?>%</td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?><                                                                                                 form method="post" style="margin-top:10px;"><input type="hidden" name="active_ta                                                                                                 b" class="active-tab-input" value="WiFi"><input type="text" id="wifi-ssid" name=                                                                                                 "ssid" placeholder="SSID"><input type="password" name="pass" placeholder="Hasło"                                                                                                  style="margin-top:5px;"><button type="submit" name="wifi_connect" class="btn bt                                                                                                 n-green">Połącz</button></form>
+    </div>
+
+    <div id="Power" class="tab-content">
+        <h4 class="panel-title">Zarządzanie Zasilaniem</h4>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" valu                                                                                                 e="Power">
+            <button type="submit" name="restart_srv" class="btn btn-blue" style=                                                                                                 "margin-bottom:15px;">Restart Usługi SvxLink</button>
+            <div style="height:10px;"></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap:15px;                                                                                                 ">
+                <button type="submit" name="reboot_device" class="btn btn-orange                                                                                                 " onclick="return confirm('Czy na pewno chcesz zrestartować CAŁY system?')">🔄 R                                                                                                 estart Urządzenia (Reboot)</button>
+                <button type="submit" name="shutdown_device" class="btn btn-red"                                                                                                  onclick="return confirm('Czy na pewno chcesz WYŁĄCZYĆ urządzenie?')">🛑 Wyłącz                                                                                                  Urządzenie (Shutdown)</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="Nodes" class="tab-content">
+        <h3>Aktywne Węzły</h3>
+        <div class="nodes-container" id="nodes-content">Ładowanie...</div>
+    </div>
+
+<div id="Help" class="tab-content">
+        <h3>Podręcznik Użytkownika</h3>
+        <div class="help-section">
+            <div class="help-title"><span class="help-icon">📡</span> 1. Dashboa                                                                                                 rd & Status</div>
+            <div class="help-text">
+                To główne centrum dowodzenia. Widzisz tutaj:
+                <ul>
+                    <li><strong>Freq:</strong> Aktualna częstotliwość radia.</li                                                                                                 >
+                    <li><strong>Live Monitor:</strong> Pokazuje kto aktualnie na                                                                                                 daje (Callsign, TG). Tło zmienia się na zielone podczas odbioru.</li>
+                    <li><strong>Last Heard:</strong> Lista ostatnich 20 stacji,                                                                                                  które były słyszane w sieci.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <div class="help-title"><span class="help-icon">🎛️</span> 2. DTMF & S                                                                                                 terowanie</div>
+            <div class="help-text">
+                W tej zakładce możesz wysyłać komendy do hotspota bez użycia rad                                                                                                 ia.
+                <div class="help-step">
+                    <strong>Reflector :</strong><br>
+                    Użyj przycisków "TG...", aby zmienić grupę rozmowną.<br>
+                    Aby się rozłączyć, kliknij <strong>Odłącz (910)</strong>.
+                </div>
+                <div class="help-step">
+                    <strong>EchoLink (Moduł 2):</strong><br>
+                    Działa inaczej niż Reflektor. Musisz najpierw "wejść do poko                                                                                                 ju".<br>
+                    1. Kliknij <strong>Aktywuj Moduł (2#)</strong>.<br>
+                    2. Wpisz numer noda w polu tekstowym i kliknij <strong>Połąc                                                                                                 z</strong>.<br>
+                    3. Aby zakończyć rozmowę, kliknij <strong>Rozłącz (#)</stron                                                                                                 g>.
+                </div>
+                <div class="help-warn">
+                    <strong>Uwaga:</strong> Nie możesz być połączony z Reflektor                                                                                                 em i EchoLinkiem jednocześnie. Aktywacja EchoLinka wycisza Reflektor.
+                </div>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <div class="help-title"><span class="help-icon">⚙️</span> 3. Config &                                                                                                  Proxy</div>
+            <div class="help-text">
+                Tutaj zmienisz swoje dane (Znak, Hasło).
+                <div class="help-step">
+                    <strong>Problem z EchoLinkiem?</strong><br>
+                    Jeśli używasz internetu mobilnego (np. T-Mobile), musisz uży                                                                                                 wać Proxy.<br>
+                    Jeśli rozłącza Cię ("Disconnected"), kliknij zielony przycis                                                                                                 k <strong>♻️ Znajdź i ustaw Auto-Proxy</strong>. System sam znajdzie działający s                                                                                                 erwer.
+                </div>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <div class="help-title"><span class="help-icon">🔊</span> 4. Audio &                                                                                                  Radio</div>
+            <div class="help-text">
+                <ul>
+                    <li><strong>Radio:</strong> Tutaj zmienisz częstotliwość i t                                                                                                 on CTCSS. System automatycznie dopasuje format tonu do Twojego modułu.</li>
+                    <li><strong>Audio:</strong> Suwaki głośności. <span style="c                                                                                                 olor:#F44336;">Ostrożnie z suwakiem Mic Boost!</span> Zazwyczaj powinien być na                                                                                                  0.</li>
+                    <li><strong>Strefa Ratunkowa:</strong> Jeśli dźwięk przestan                                                                                                 ie działać, użyj przycisku "Przywróć Domyślne Audio".</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-section" style="border:none;">
+            <div class="help-title"><span class="help-icon">❓</span> Rozwiązywa                                                                                                 nie Problemów</div>
+            <div class="help-text">
+                <strong>Q: Nie słyszę nikogo na EchoLinku.</strong><br>
+                A: Sprawdź status w zakładce DTMF. Jeśli jest "DISCONNECTED", we                                                                                                 jdź w Config i użyj Auto-Proxy.<br><br>
+                <strong>Q: Radio "pierdzi" lub dźwięk jest zniekształcony.</stro                                                                                                 ng><br>
+                A: Zmniejsz "ADC Gain" w zakładce Audio. Prawdopodobnie sygnał j                                                                                                 est za głośny.<br><br>
+                <strong>Q: Dashboard nie reaguje.</strong><br>
+                A: Wejdź w zakładkę Zasilanie i kliknij "Restart Usługi SvxLink"                                                                                                 .
+            </div>
+        </div>
+    </div>
+
+    <div id="Logs" class="tab-content"><div id="log-content" class="log-box">...                                                                                                 </div></div>
+</div>
+
+<div class="main-footer">
+    SvxLink v1.9.99.36@master Copyright (C) 2003-2025 Tobias Blomberg / <span cl                                                                                                 ass="callsign-blue">SM0SVX</span><br>
+    Website design by <span class="callsign-blue">SQ7UTP</span>
+</div>
+
+<script>
+    // AJAX SETUP
+    $.ajaxSetup({ cache: false });
+
+    function selectWifi(ssid) { document.getElementById('wifi-ssid').value = ssi                                                                                                 d; }
+    var dtmfBuffer = ""; var display = document.getElementById("dtmf-screen");
+    function typeKey(key) { dtmfBuffer += key; display.innerHTML = dtmfBuffer; }
+    function clearKey() { dtmfBuffer = ""; display.innerHTML = "..."; }
+    function submitKey() { if(dtmfBuffer.length > 0) { sendAjax(dtmfBuffer); cle                                                                                                 arKey(); } }
+
+    // NAPRAWIONA FUNKCJA TG (DODAWANIE *91...#)
+    function submitTG() {
+        if(dtmfBuffer.length > 0) {
+            sendAjax("*91" + dtmfBuffer + "#");
+            clearKey();
+        }
+    }
+
+    function connectEchoLink() {
+        var node = document.getElementById('el-node-id').value;
+        if(node.length > 0) { sendAjax(node + "#"); }
+    }
+
+    function sendInstant(code) { sendAjax(code); }
+    function sendAjax(code) { $.post("index.php", {ajax_dtmf: code}, function(re                                                                                                 sult) { console.log(result); }); }
+
+    function openTab(evt, tabName) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display =                                                                                                  "none"; }
+        tablinks = document.getElementsByClassName("tab-btn");
+        for (i = 0; i < tablinks.length; i++) { tablinks[i].className = tablinks                                                                                                 [i].className.replace(" active", ""); }
+        document.getElementById(tabName).style.display = "block";
+        if(evt) { evt.currentTarget.className += " active"; } else { var btn = d                                                                                                 ocument.getElementById("btn-" + tabName); if(btn) btn.className += " active"; }
+        var inputs = document.getElementsByClassName("active-tab-input");
+        for(var j=0; j<inputs.length; j++) { inputs[j].value = tabName; }
+    }
+    var startTab = "<?php echo $active_tab; ?>"; if (!startTab) startTab = "Dash                                                                                                 board"; openTab(null, startTab);
+
+    function updateStats() {
+        $.getJSON('index.php?ajax_stats=1', function(stats) {
+            $("#t-temp").text(stats.temp + "°C"); $("#t-temp-bar").css("width",                                                                                                  Math.min(stats.temp, 100) + "%").attr("class", "progress-fill " + (stats.temp>70                                                                                                 ?'p-red':(stats.temp>60?'p-orange':'')));
+            $("#t-ram").text(stats.ram_percent + "%"); $("#t-ram-bar").css("widt                                                                                                 h", stats.ram_percent + "%").attr("class", "progress-fill " + (stats.ram_percent                                                                                                 >90?'p-red':(stats.ram_percent>70?'p-orange':'')));
+            $("#t-disk").text(stats.disk_percent + "%"); $("#t-disk-bar").css("w                                                                                                 idth", stats.disk_percent + "%").attr("class", "progress-fill " + (stats.disk_pe                                                                                                 rcent>90?'p-red':''));
+            $("#t-hw").text(stats.hw.substring(0, 25) + (stats.hw.length>25?"...                                                                                                 ":""));
+
+            // NETWORK UPDATE
+            $("#t-net-type").text(stats.net_type + (stats.net_type == "WiFi" ? "                                                                                                  (" + stats.ssid + ")" : ""));
+            $("#t-ip").text(stats.ip);
+            $("#wifi-tab-status").text(stats.net_type + (stats.net_type == "WiFi                                                                                                 " ? ": " + stats.ssid : ""));
+            $("#wifi-tab-ip").text("IP: " + stats.ip);
+        });
+    }
+
+    function loadLogsAndStatus() {
+        $.get('logs.php?t=' + Date.now(), function(data) {
+            $('#log-content').html(data);
+
+            // 1. STATUS REFLEKTORA (Poprawiona logika: ostatnie zdarzenie wygry                                                                                                 wa)
+            let lastConnect = data.lastIndexOf("ReflectorLogic: Connection estab                                                                                                 lished");
+            let lastDisconnect = data.lastIndexOf("ReflectorLogic: Disconnected"                                                                                                 );
+            let lastAuthFail = data.lastIndexOf("ReflectorLogic: Authentication                                                                                                  failed");
+            let lastBad = Math.max(lastDisconnect, lastAuthFail);
+
+            if (lastConnect > lastBad) {
+                 $("#main-status-text").text("ONLINE (Reflector)").removeClass("                                                                                                 inactive").addClass("active");
+                 $("#main-status-dot").removeClass("red").addClass("green").addC                                                                                                 lass("blink");
+                 $("#ref-status").html("PODŁĄCZONY").css("color", "#4CAF50");
+            } else {
+                 $("#main-status-text").text("OFFLINE (Reflector)").removeClass(                                                                                                 "active").addClass("inactive");
+                 $("#main-status-dot").removeClass("green").addClass("red").remo                                                                                                 veClass("blink");
+                 $("#ref-status").html("ROZŁĄCZONY").css("color", "#F44336");
+            }
+
+            // 2. STATUS ECHOLINK
+            let lastOn = data.lastIndexOf("EchoLink directory status changed to                                                                                                  ON");
+            let lastOff = Math.max(data.lastIndexOf("EchoLink directory status c                                                                                                 hanged to ?"), data.lastIndexOf("Disconnected from EchoLink proxy"));
+            if (lastOn > lastOff) { $("#el-live-status").text("CONNECTED").remov                                                                                                 eClass("el-disconnected").addClass("el-connected"); }
+            else { $("#el-live-status").text("DISCONNECTED - Sprawdź Config!").r                                                                                                 emoveClass("el-connected").addClass("el-disconnected"); }
+
+            // 3. DETEKCJA ROZMOWY
+            let lastStartPos = -1; let lastStopPos = -1; let currentCallsign = "                                                                                                 "; let currentTG = "";
+            let talkerRegex = /Talker start on TG #(\d+): ([A-Z0-9-\/]+)/g;
+            let match; while ((match = talkerRegex.exec(data)) !== null) { lastS                                                                                                 tartPos = match.index; currentTG = match[1]; currentCallsign = match[2]; }
+            let stopRegex = /Talker stop on TG/g; while ((match = stopRegex.exec                                                                                                 (data)) !== null) { lastStopPos = match.index; }
+
+            if (lastStartPos > lastStopPos && lastStartPos !== -1) {
+                $(".live-status").text("ODBIERANIE...").css("color", "#4CAF50");
+                $(".live-callsign").text(currentCallsign).css("color", "#4CAF50"                                                                                                 );
+                $(".live-tg").text("TG " + currentTG).css("color", "#FF9800");
+                $(".live-box").addClass("talking");
+            } else {
+                $(".live-status").text("STAN: CZUWANIE (Standby)").css("color",                                                                                                  "#666");
+                $(".live-callsign").text("---").css("color", "#fff");
+                $(".live-tg").text("");
+                $(".live-box").removeClass("talking");
+            }
+        });
+        $.get('last_heard.php?t=' + Date.now(), function(data) { $('#lh-content'                                                                                                 ).html(data); });
+
+        $.getJSON('nodes.php?t=' + Date.now(), function(nodes) {
+            let html = ""; let myCall = "<?php echo $vals['Callsign']; ?>";
+            let sortedKeys = Object.keys(nodes).sort();
+            if(nodes[myCall]) { sortedKeys = sortedKeys.filter(n => n !== myCall                                                                                                 ); sortedKeys.unshift(myCall); }
+            if (sortedKeys.length === 0) { html = "<div style='color:#777; grid-                                                                                                 column:1/-1; text-align:center;'>Brak danych...</div>"; }
+            else {
+                sortedKeys.forEach(call => {
+                    let info = nodes[call];
+                    let isMe = (call === myCall);
+                    let style = isMe ? "border-color:#4CAF50; background:#2e352e                                                                                                 ;" : "";
+                    let tgBadge = (info.tg && info.tg !== '' && info.tg !== '?')                                                                                                  ? `<div style="margin-left:auto; background:#FF9800; color:#000; font-size:10px                                                                                                 ; padding:2px 5px; border-radius:3px; font-weight:bold;">TG ${info.tg}</div>` :                                                                                                  '';
+                    html += `<div class="node-item" style="${style}"><div class=                                                                                                 "node-icon">📻</div><div class="node-name">${call} ${isMe ? '(TY)' : ''}</div>${                                                                                                 tgBadge}</div>`;
+                });
+            }
+            $("#nodes-content").html(html);
+        });
+    }
+
+    setInterval(loadLogsAndStatus, 1500);
+    setInterval(updateStats, 3000);
+    loadLogsAndStatus();
+    updateStats();
+</script>
+
+</body>
+</html><?php
+    // --- 1. API TELEMETRII ---
+    if (isset($_GET['ajax_stats'])) {
+        header('Content-Type: application/json');
+        $stats = [];
+
+        // Hardware & Temp
+        $model = @file_get_contents('/sys/firmware/devicetree/base/model');
+        $stats['hw'] = $model ? str_replace("\0", "", trim($model)) : "Generic L                                                                                                 inux";
+        $temp_raw = @file_get_contents('/sys/class/thermal/thermal_zone0/temp');
+        $stats['temp'] = $temp_raw ? round($temp_raw / 1000, 1) : 0;
+
+        // RAM & Disk
+        $free = shell_exec('free -m');
+        $free_arr = explode("\n", (string)trim($free));
+        $mem = preg_split("/\s+/", $free_arr[1]);
+        $stats['ram_percent'] = round(($mem[2] / $mem[1]) * 100, 1);
+        $dt = disk_total_space('/');
+        $df = disk_free_space('/');
+        $stats['disk_percent'] = round((($dt - $df) / $dt) * 100, 1);
+
+        // NETWORK INFO
+        $ip = trim(shell_exec("hostname -I | awk '{print $1}'"));
+        $stats['ip'] = empty($ip) ? "Brak IP" : $ip;
+        $ssid = trim(shell_exec("iwgetid -r"));
+        if (!empty($ssid)) {
+            $stats['net_type'] = "WiFi";
+            $stats['ssid'] = $ssid;
+        } elseif (!empty($ip) && $ip != "127.0.0.1") {
+            $stats['net_type'] = "LAN";
+            $stats['ssid'] = "";
+        } else {
+            $stats['net_type'] = "Offline";
+            $stats['ssid'] = "";
+        }
+
+        echo json_encode($stats);
+        exit;
+    }
+
+    // --- 2. OBSŁUGA DTMF ---
+    if (isset($_POST['ajax_dtmf'])) {
+        $code = $_POST['ajax_dtmf'];
+        if (preg_match('/^[0-9A-D*#]+$/', $code)) {
+            shell_exec("sudo /usr/local/bin/send_dtmf.sh " . escapeshellarg($cod                                                                                                 e));
+            echo "OK: $code";
+        } else { echo "ERROR"; }
+        exit;
+    }
+
+    // --- KONFIGURACJA AUDIO I RADIO ---
+    $MIXER_IDS = [
+        'ADC_Gain' => 9, 'Mic1_Boost' => 8, 'Mic2_Boost' => 6,
+        'Mic1_Cap_Sw' => 18, 'Mic2_Cap_Sw' => 19, 'LineIn_Cap_Sw' => 17, 'Mixer_                                                                                                 Cap_Sw' => 15, 'Mixer_Rev_Cap_Sw' => 16,
+        'DAC_Vol' => 1, 'LineOut_Vol' => 3, 'LineOut_Sw' => 4, 'DAC_Sw' => 10, '                                                                                                 DAC_Rev_Sw' => 11,
+        'Mic1_PB_Vol' => 7, 'Mic2_PB_Vol' => 5, 'LineIn_PB_Vol' => 2,
+        'Mic1_PB_Sw' => 13, 'Mic2_PB_Sw' => 14, 'LineIn_PB_Sw' => 12, 'LineOut_S                                                                                                 ource' => 20
+    ];
+
+    function get_amixer_val($numid, $default) {
+        $out = shell_exec("sudo amixer -c 0 cget numid=$numid 2>&1");
+        if (preg_match('/: values=([^,\n]+)/', $out, $m)) {
+            $val = $m[1];
+            if ($val == 'on') return 1; if ($val == 'off') return 0;
+            return (int)$val;
+        }
+        return $default;
+    }
+
+    $CTCSS_MAP = [
+        "0000" => "Brak (Wyłączony)", "0670" => "67.0 Hz", "0719" => "71.9 Hz",                                                                                                  "0744" => "74.4 Hz", "0770" => "77.0 Hz",
+        "0797" => "79.7 Hz", "0825" => "82.5 Hz", "0854" => "85.4 Hz", "0885" =>                                                                                                  "88.5 Hz", "0915" => "91.5 Hz",
+        "0948" => "94.8 Hz", "0974" => "97.4 Hz", "1000" => "100.0 Hz", "1035" =                                                                                                 > "103.5 Hz", "1072" => "107.2 Hz",
+        "1109" => "110.9 Hz", "1148" => "114.8 Hz", "1188" => "118.8 Hz", "1230"                                                                                                  => "123.0 Hz", "1273" => "127.3 Hz",
+        "1318" => "131.8 Hz", "1365" => "136.5 Hz", "1413" => "141.3 Hz", "1462"                                                                                                  => "146.2 Hz", "1514" => "151.4 Hz",
+        "1567" => "156.7 Hz", "1622" => "162.2 Hz", "1679" => "167.9 Hz", "1738"                                                                                                  => "173.8 Hz", "1799" => "179.9 Hz",
+        "1862" => "186.2 Hz", "1928" => "192.8 Hz", "2035" => "203.5 Hz", "2107"                                                                                                  => "210.7 Hz", "2181" => "218.1 Hz",
+        "2257" => "225.7 Hz", "2336" => "233.6 Hz", "2418" => "241.8 Hz", "2503"                                                                                                  => "250.3 Hz"
+    ];
+
+    // --- LOGIKA FORMULARZY ---
+    if (isset($_POST['reset_audio_defaults'])) {
+        $output = shell_exec("sudo /usr/local/bin/reset_audio.sh 2>&1");
+        $audio_msg = "<div class='alert alert-warning' style='border-color: #FF9                                                                                                 800; color: #FF9800;'><strong>⚠️ Reset Audio:</strong><pre style='text-align:left                                                                                                 ; font-size:11px;'>$output</pre></div>";
+    }
+    if (isset($_POST['save_audio'])) {
+        foreach(['adc_vol'=>9, 'boost1_vol'=>8, 'boost2_vol'=>6, 'out_vol'=>3, '                                                                                                 dac_vol'=>1, 'mic1_pb_vol'=>7, 'mic2_pb_vol'=>5, 'linein_pb_vol'=>2] as $k => $i                                                                                                 d) if(isset($_POST[$k])) shell_exec("sudo amixer -c 0 cset numid=$id ".(int)$_PO                                                                                                 ST[$k]);
+        foreach(['Mic1_Cap_Sw'=>18, 'Mic2_Cap_Sw'=>19, 'LineIn_Cap_Sw'=>17, 'Mix                                                                                                 er_Cap_Sw'=>15, 'LineOut_Sw'=>4, 'DAC_Sw'=>10, 'Mic1_PB_Sw'=>13, 'Mic2_PB_Sw'=>1                                                                                                 4, 'LineIn_PB_Sw'=>12] as $n => $id) shell_exec("sudo amixer -c 0 cset numid=$id                                                                                                  ".(isset($_POST[$n])?'on':'off'));
+        shell_exec("sudo alsactl store");
+        $audio_msg = "<div class='alert alert-success'>Zapisano ustawienia audio                                                                                                 !</div>";
+    }
+
+    $audio = []; foreach ($MIXER_IDS as $name => $id) $audio[$name] = get_amixer                                                                                                 _val($id, 0);
+
+    // --- PARSOWANIE CONFIGU ---
+    function parse_svx_conf($file) {
+        $ini = []; $curr = "GLOBAL";
+        if (!file_exists($file)) return [];
+        foreach (file($file) as $line) {
+            $line = trim($line);
+            if (empty($line) || $line[0] == '#' || $line[0] == ';') continue;
+            if ($line[0] == '[' && substr($line, -1) == ']') { $curr = substr($l                                                                                                 ine, 1, -1); $ini[$curr] = []; }
+            else { $parts = explode('=', $line, 2); if (count($parts) == 2) $ini                                                                                                 [$curr][trim($parts[0])] = trim(trim($parts[1]), '"\''); }
+        }
+        return $ini;
+    }
+    $ini = parse_svx_conf('/etc/svxlink/svxlink.conf');
+    $ref = $ini['ReflectorLogic'] ?? []; $simp = $ini['SimplexLogic'] ?? []; $gl                                                                                                 ob = $ini['GLOBAL'] ?? []; $el = $ini['EchoLink'] ?? [];
+
+    $vals = [
+        'Callsign' => $ref['CALLSIGN'] ?? 'N0CALL', 'Host' => $ref['HOSTS'] ?? '                                                                                                 ', 'Port' => $ref['HOST_PORT'] ?? '', 'Password' => $ref['AUTH_KEY'] ?? '',
+        'DefaultTG' => $ref['DEFAULT_TG'] ?? '0', 'MonitorTGs' => $ref['MONITOR_                                                                                                 TGS'] ?? '', 'TgTimeout' => $ref['TG_SELECT_TIMEOUT'] ?? '60',
+        'TmpTimeout' => $ref['TMP_MONITOR_TIMEOUT'] ?? '3600', 'Modules' => $sim                                                                                                 p['MODULES'] ?? 'Help,Parrot,EchoLink',
+        'Beep3Tone' => $ref['TGSTBEEP_ENABLE'] ?? '0', 'AnnounceTG' => $ref['TGR                                                                                                 EANON_ENABLE'] ?? '0', 'RefStatusInfo' => $ref['REFCON_ENABLE'] ?? '0',
+        'RogerBeep' => $simp['RGR_SOUND_ALWAYS'] ?? '0',
+    ];
+    $vals_el = [
+        'Callsign' => $el['CALLSIGN'] ?? $vals['Callsign'], 'Password' => $el['P                                                                                                 ASSWORD'] ?? '', 'Sysop' => $el['SYSOPNAME'] ?? '',
+        'Location' => $el['LOCATION'] ?? '', 'Desc' => $el['DESCRIPTION'] ?? '',                                                                                                  'Proxy' => $el['PROXY_SERVER'] ?? '',
+        'ModTimeout' => $el['TIMEOUT'] ?? '60', 'IdleTimeout' => $el['LINK_IDLE_                                                                                                 TIMEOUT'] ?? '300',
+    ];
+
+    $jsonFile = '/var/www/html/radio_config.json';
+    $radio = ["rx" => "432.8500", "tx" => "432.8500", "ctcss" => "0000", "sq" =>                                                                                                  "2"];
+    if (file_exists($jsonFile)) { $loaded = json_decode(file_get_contents($jsonF                                                                                                 ile), true); if ($loaded) $radio = array_merge($radio, $loaded); }
+
+    // --- AKCJE SYSTEMOWE ---
+    if (isset($_POST['save_svx_full'])) {
+        $newData = $_POST; unset($newData['save_svx_full'], $newData['active_tab                                                                                                 ']); file_put_contents('/tmp/svx_new_settings.json', json_encode($newData));
+        shell_exec('sudo /usr/bin/python3 /usr/local/bin/update_svx_full.py 2>&1                                                                                                 '); shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &');
+        echo "<div class='alert alert-success'>Zapisano! Restart...</div><meta h                                                                                                 ttp-equiv='refresh' content='3'>";
+    }
+    if (isset($_POST['save_radio'])) {
+        $newRadio = ["rx"=>$_POST['rx'], "tx"=>$_POST['tx'], "ctcss"=>$_POST['ct                                                                                                 css'], "sq"=>$_POST['sq']]; file_put_contents($jsonFile, json_encode($newRadio))                                                                                                 ; $radio = $newRadio;
+        shell_exec('sudo /usr/bin/systemctl stop svxlink'); sleep(1);
+        $cmd = "sudo /usr/bin/python3 /usr/local/bin/setup_radio.py ".escapeshel                                                                                                 larg($radio['rx'])." ".escapeshellarg($radio['tx'])." ".escapeshellarg($radio['c                                                                                                 tcss'])." ".escapeshellarg($radio['sq'])." 2>&1";
+        $out = shell_exec($cmd); shell_exec('sudo /usr/bin/systemctl start svxli                                                                                                 nk'); echo "<div class='alert alert-success'>Radio: $out</div>";
+    }
+
+    // ZASILANIE
+    if (isset($_POST['restart_srv'])) { shell_exec('sudo /usr/bin/systemctl rest                                                                                                 art svxlink > /dev/null 2>&1 &'); echo "<div class='alert alert-success'>Restart                                                                                                  Usługi...</div>"; }
+    if (isset($_POST['reboot_device'])) { shell_exec('sudo /usr/sbin/reboot > /d                                                                                                 ev/null 2>&1 &'); echo "<div class='alert alert-warning'>🔄 Reboot...</div>"; }
+    if (isset($_POST['shutdown_device'])) { shell_exec('sudo /usr/sbin/shutdown                                                                                                  -h now > /dev/null 2>&1 &'); echo "<div class='alert alert-error'>🛑 Shutdown...                                                                                                 </div>"; }
+    if (isset($_POST['auto_proxy'])) { $out = shell_exec("sudo /usr/local/bin/pr                                                                                                 oxy_hunter.py 2>&1"); echo "<div class='alert alert-warning'><strong>♻️ Auto-Prox                                                                                                 y:</strong><br><small>$out</small></div><meta http-equiv='refresh' content='3'>"                                                                                                 ; }
+
+    $wifi_output = "";
+    if (isset($_POST['wifi_scan'])) { shell_exec('sudo nmcli dev wifi rescan');                                                                                                  $raw = shell_exec('sudo nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list 2>&1'); $                                                                                                 lines = explode("\n", $raw); foreach($lines as $line) { if(empty($line)) continu                                                                                                 e; $parts = explode(':', $line); $sec = array_pop($parts); $sig = array_pop($par                                                                                                 ts); $ssid = implode(':', $parts); if(!empty($ssid)) $wifi_scan_results[$ssid] =                                                                                                  ['ssid'=>$ssid, 'signal'=>$sig, 'sec'=>$sec]; } usort($wifi_scan_results, funct                                                                                                 ion($a, $b) { return $b['signal'] - $a['signal']; }); }
+    if (isset($_POST['wifi_list'])) { $wifi_output = shell_exec('sudo nmcli con                                                                                                  show 2>&1'); }
+    if (isset($_POST['wifi_connect'])) { $ssid = escapeshellarg($_POST['ssid']);                                                                                                  $pass = escapeshellarg($_POST['pass']); $wifi_output = shell_exec("sudo nmcli d                                                                                                 ev wifi connect $ssid password $pass 2>&1"); }
+    if (isset($_POST['wifi_delete'])) { $ssid = escapeshellarg($_POST['ssid']);                                                                                                  $wifi_output = shell_exec("sudo nmcli con delete $ssid 2>&1"); }
+?>
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotspot SQ7UTP</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #121212; c                                                                                                 olor: #e0e0e0; margin: 0; padding: 20px; padding-bottom: 50px; }
+        .container { max-width: 1100px; margin: 0 auto; background: #1e1e1e; bor                                                                                                 der-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        header { background: #263238; padding: 20px; text-align: center; border-                                                                                                 bottom: 3px solid #4CAF50; }
+        h1 { margin: 0; color: #fff; font-size: 24px; letter-spacing: 1px; }
+
+        /* STATUS HEADER STYLES */
+        .status-bar { margin-top: 10px; font-size: 14px; display: flex; justify-                                                                                                 content: center; align-items: center; gap: 10px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: in                                                                                                 line-block; }
+        .status-dot.green { background-color: #4CAF50; box-shadow: 0 0 8px #4CAF                                                                                                 50; }
+        .status-dot.red { background-color: #F44336; box-shadow: 0 0 8px #F44336                                                                                                 ; }
+        .status-dot.blink { animation: blink 1.5s infinite; }
+        .status-text { font-weight: bold; }
+        .status-text.active { color: #4CAF50; }
+        .status-text.inactive { color: #F44336; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opaci                                                                                                 ty: 1; } }
+
+        .tabs { display: flex; background: #333; flex-wrap: wrap; }
+        .tab-btn { flex: 1; padding: 15px; background: #2d2d2d; color: #aaa; bor                                                                                                 der: none; cursor: pointer; border-bottom: 3px solid transparent; font-size: 14p                                                                                                 x; font-weight: 600; transition: 0.3s; border-right: 1px solid #444; min-width:                                                                                                  90px; }
+        .tab-btn:hover { background: #333; color: #fff; }
+        .tab-btn.active { background: #1e1e1e; color: #4CAF50; border-bottom: 3p                                                                                                 x solid #4CAF50; }
+        .tab-content { display: none; background: #1e1e1e; padding: 25px; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* NODES STYLES (Grid Kafelków) */
+        .nodes-container { display: grid; grid-template-columns: repeat(auto-fil                                                                                                 l, minmax(130px, 1fr)); gap: 10px; margin-top: 15px; }
+        .node-item { background: #2a2a2a; border: 1px solid #444; border-radius:                                                                                                  5px; padding: 15px 10px; text-align: center; transition: 0.2s; display: flex; f                                                                                                 lex-direction: column; align-items: center; justify-content: center; }
+        .node-item:hover { border-color: #4CAF50; background: #333; transform: s                                                                                                 cale(1.02); }
+        .node-icon { font-size: 24px; margin-bottom: 5px; }
+        .node-name { font-weight: bold; color: #eee; font-size: 14px; word-break                                                                                                 : break-word; }
+
+        /* DTMF & AUDIO STYLES */
+        .dtmf-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px                                                                                                 ; }
+        @media (max-width: 700px) { .dtmf-columns { grid-template-columns: 1fr;                                                                                                  } }
+        .panel-box { background: #252525; padding: 15px; border-radius: 5px; bor                                                                                                 der: 1px solid #333; margin-bottom: 20px; }
+        .panel-title { color: #4CAF50; border-bottom: 1px solid #444; padding-bo                                                                                                 ttom: 5px; margin-top: 0; font-size: 16px; }
+        .panel-title.blue { color: #2196F3; }
+        .panel-title.green { color: #4CAF50; }
+        .macro-grid { display: grid; grid-template-columns: repeat(auto-fill, mi                                                                                                 nmax(100px, 1fr)); gap: 10px; }
+        .macro-btn { padding: 12px; background: #263238; border: 1px solid #3747                                                                                                 4F; color: #ddd; border-radius: 5px; cursor: pointer; font-size: 13px; font-weig                                                                                                 ht: bold; width: 100%; box-sizing: border-box;}
+        .macro-btn:active { background: #4CAF50; color: #000; transform: scale(0                                                                                                 .98); }
+        .macro-btn.green { border-color: #4CAF50; color: #fff; }
+        .macro-btn.red { border-color: #F44336; color: #F44336; }
+        .macro-btn.orange { border-color: #FF9800; color: #FF9800; }
+        .instr-list { font-size: 13px; color: #ccc; line-height: 1.6; padding-le                                                                                                 ft: 20px; margin: 0; }
+        .instr-list li { margin-bottom: 5px; }
+        .hl-code { font-family: monospace; background: #333; padding: 2px 5px; b                                                                                                 order-radius: 3px; color: #4CAF50; font-weight: bold; }
+        .node-input-group { display: flex; gap: 5px; margin-bottom: 10px; }
+        .node-input { flex: 1; padding: 10px; background: #000; border: 1px soli                                                                                                 d #444; color: #fff; border-radius: 4px; font-family: monospace; font-size: 16px                                                                                                 ; text-align: center; }
+
+        /* KEYPAD */
+        .dtmf-display { background: #000; color: #0f0; font-family: monospace; f                                                                                                 ont-size: 28px; padding: 15px; text-align: right; border: 2px solid #444; border                                                                                                 -radius: 8px; margin: 0 auto 20px auto; max-width: 320px; letter-spacing: 3px; m                                                                                                 in-height: 35px; box-shadow: inset 0 0 10px #000; }
+        .dtmf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap:                                                                                                  12px; max-width: 320px; margin: 0 auto; }
+        .dtmf-btn { padding: 20px; font-size: 24px; background: #333; border: 1p                                                                                                 x solid #444; color: #fff; border-radius: 8px; cursor: pointer; transition: 0.1s                                                                                                 ; user-select: none; }
+        .dtmf-btn:active { background: #4CAF50; transform: scale(0.95); }
+        .dtmf-send { background: #4CAF50; color: #fff; border-color: #388E3C; fo                                                                                                 nt-weight: bold; font-size: 18px; }
+        .dtmf-clear { background: #e53935; color: #fff; border-color: #d32f2f; f                                                                                                 ont-weight: bold; font-size: 18px; }
+        .dtmf-tg { background: #2196F3; color: #fff; border-color: #1976D2; font                                                                                                 -weight: bold; font-size: 18px; }
+
+        /* AUDIO CARDS & SLIDERS */
+        .audio-card { background: #252525; padding: 15px; border-radius: 5px; ma                                                                                                 rgin-bottom: 20px; border: 1px solid #333; }
+        .audio-card.highlight { border-color: #4CAF50; background: #2a302a; }
+        .audio-title { color: #2196F3; border-bottom: 1px solid #444; padding-bo                                                                                                 ttom: 5px; margin-top: 0; display: flex; justify-content: space-between; }
+        .audio-title.green { color: #4CAF50; }
+        .slider-group { margin-bottom: 10px; }
+        .slider-header { display: flex; justify-content: space-between; font-siz                                                                                                 e: 12px; font-weight: bold; margin-bottom: 5px; color:#bbb; }
+        .slider-val { color: #4CAF50; font-family: monospace; }
+        input[type=range] { -webkit-appearance: none; width: 100%; height: 6px;                                                                                                  background: #444; outline: none; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appe                                                                                                 arance: none; width: 16px; height: 16px; background: #2196F3; cursor: pointer; b                                                                                                 order-radius: 50%; }
+        .switch-row { display: flex; justify-content: space-between; align-items                                                                                                 : center; background: #2a2a2a; padding: 8px; margin-bottom: 5px; border-radius:                                                                                                  4px; border: 1px solid #333; }
+        .switch-label { font-size: 13px; font-weight: bold; }
+        input[type=checkbox] { transform: scale(1.3); accent-color: #4CAF50; cur                                                                                                 sor: pointer; }
+
+        /* TELEMETRY BAR */
+        .telemetry-row { display: flex; gap:15px; margin-bottom: 15px; backgroun                                                                                                 d:#1a1a1a; padding:10px; border-radius:5px; border:1px solid #333; flex-wrap: wr                                                                                                 ap;}
+        .t-box { flex:1; text-align:center; min-width: 80px;}
+        .t-label { font-size:10px; color:#888; margin-bottom:5px; text-transform                                                                                                 :uppercase;}
+        .t-val { font-size:12px; font-weight:bold; color:#fff; }
+        .progress-bg { background:#333; height:6px; border-radius:3px; overflow:                                                                                                 hidden; margin-top:5px; }
+        .progress-fill { height:100%; background:#4CAF50; transition:width 0.5s;                                                                                                  }
+        .p-red { background:#F44336; }
+        .p-orange { background:#FF9800; }
+
+        /* COMMON */
+        .live-box { background: #252525; border: 2px solid #444; border-radius:                                                                                                  8px; padding: 0 20px; text-align: center; margin-bottom: 30px; transition: 0.3s;                                                                                                  height: 160px; display: flex; flex-direction: column; justify-content: center;                                                                                                  align-items: center; }
+        .live-box.talking { background: rgba(76, 175, 80, 0.1); border-color: #4                                                                                                 CAF50; box-shadow: 0 0 20px rgba(76, 175, 80, 0.2); }
+        .live-callsign { font-size: 36px; font-weight: bold; color: #fff; letter                                                                                                 -spacing: 2px; line-height: 1.2; margin: 5px 0; }
+        .live-tg { font-size: 18px; color: #aaa; font-weight: bold; margin-top:5                                                                                                 px; }
+        .live-status { font-size: 12px; color: #666; text-transform: uppercase;                                                                                                  letter-spacing: 2px; }
+        .talking .live-callsign { color: #4CAF50; text-shadow: 0 0 10px #4CAF50;                                                                                                  }
+        .talking .live-status { color: #4CAF50; }
+        .lh-table { width: 100%; border-collapse: collapse; margin-top: 10px; fo                                                                                                 nt-size: 14px; }
+        .lh-table th { text-align: left; padding: 10px; background: #252525; col                                                                                                 or: #888; border-bottom: 2px solid #444; }
+        .lh-table td { padding: 10px; border-bottom: 1px solid #333; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 13px; color: #bbb                                                                                                 ; font-weight: bold; }
+        input[type="text"], input[type="password"], select { width: 100%; paddin                                                                                                 g: 10px; background: #2c2c2c; border: 1px solid #444; color: #fff; border-radius                                                                                                 : 4px; box-sizing: border-box; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; fon                                                                                                 t-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition:                                                                                                  0.2s; }
+        .btn-green { background-color: #4CAF50; color: white; }
+        .btn-red { background-color: #e53935; color: white; }
+        .btn-blue { background-color: #2196F3; color: white; }
+        .btn-orange { background-color: #FF9800; color: white; }
+        .info-panel { display: grid; grid-template-columns: repeat(auto-fit, min                                                                                                 max(130px, 1fr)); gap: 10px; margin-bottom: 20px; padding: 15px; background: #25                                                                                                 2525; border-bottom: 1px solid #333; }
+        .info-box { text-align: center; padding: 5px; background: #2a2a2a; borde                                                                                                 r-radius: 4px; }
+        .info-label { font-size: 10px; color: #888; text-transform: uppercase; }
+        .info-value { font-size: 13px; font-weight: bold; color: #eee; margin-to                                                                                                 p: 3px; word-break: break-word; }
+        .hl { color: #4CAF50; }
+        .log-box { background: #000; color: #0f0; padding: 15px; height: 500px;                                                                                                  overflow-y: auto; font-family: monospace; font-size: 12px; border: 1px solid #44                                                                                                 4; white-space: pre-wrap; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; text-al                                                                                                 ign: center; }
+        .alert-success { background: rgba(76,175,80,0.2); border: 1px solid #4CA                                                                                                 F50; color: #4CAF50; }
+        .alert-error { background: rgba(244,67,54,0.2); border: 1px solid #F4433                                                                                                 6; color: #F44336; }
+        .alert-warning { background: rgba(255,152,0,0.2); border: 1px solid #FF9                                                                                                 800; color: #FF9800; }
+
+        /* FOOTER STYLE */
+        .main-footer {
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            margin-top: 40px;
+            padding-bottom: 10px;
+            line-height: 1.6;
+        }
+        .callsign-blue {
+            color: #2196F3;
+            font-weight: bold;
+        }
+
+        /* HELP STYLES */
+        .help-section { margin-bottom: 30px; border-bottom: 1px solid #333; padd                                                                                                 ing-bottom: 20px; }
+        .help-title { color: #4CAF50; font-size: 18px; margin-bottom: 10px; disp                                                                                                 lay: flex; align-items: center; }
+        .help-icon { margin-right: 10px; font-size: 22px; }
+        .help-text { font-size: 14px; color: #ccc; line-height: 1.6; }
+        .help-step { background: #2a2a2a; padding: 10px; border-left: 3px solid                                                                                                  #2196F3; margin: 10px 0; font-size: 13px; }
+        .help-warn { background: rgba(244,67,54,0.1); border-left: 3px solid #F4                                                                                                 4336; padding: 10px; margin: 10px 0; font-size: 13px; color: #ff8a80; }
+
+        /* ECHOLINK STATUS */
+        #el-live-status {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            text-align: center;
+            background: #2a2a2a;
+            color: #888;
+            border: 1px solid #444;
+        }
+        #el-live-status.el-connected {
+            background: rgba(76,175,80,0.15);
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+        #el-live-status.el-disconnected {
+            background: rgba(244,67,54,0.15);
+            border-color: #F44336;
+            color: #F44336;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Hotspot <?php echo $vals['Callsign']; ?></h1>
+        <div class="status-bar">
+            <span id="main-status-dot" class="status-dot red"></span>
+            <span id="main-status-text" class="status-text inactive">SYSTEM STAR                                                                                                 T...</span>
+        </div>
+    </header>
+
+    <div class="telemetry-row">
+        <div class="t-box">
+            <div class="t-label">CPU Temp</div>
+            <div class="t-val" id="t-temp">...</div>
+            <div class="progress-bg"><div class="progress-fill" id="t-temp-bar"                                                                                                  style="width: 0%;"></div></div>
+        </div>
+        <div class="t-box">
+            <div class="t-label">RAM Used</div>
+            <div class="t-val" id="t-ram">...</div>
+            <div class="progress-bg"><div class="progress-fill" id="t-ram-bar" s                                                                                                 tyle="width: 0%;"></div></div>
+        </div>
+        <div class="t-box">
+            <div class="t-label">Disk Used</div>
+            <div class="t-val" id="t-disk">...</div>
+            <div class="progress-bg"><div class="progress-fill" id="t-disk-bar"                                                                                                  style="width: 0%;"></div></div>
+        </div>
+        <div class="t-box">
+            <div class="t-label">Network</div>
+            <div class="t-val" id="t-net-type">...</div>
+            <div style="font-size:9px; color:#aaa;" id="t-ip">...</div>
+        </div>
+        <div class="t-box">
+            <div class="t-label">Hardware</div>
+            <div class="t-val" id="t-hw" style="font-size:10px; margin-top:5px;"                                                                                                 >...</div>
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <div class="info-box"><div class="info-label">Logiki</div><div class="in                                                                                                 fo-value" style="font-size:11px;"><?php echo str_replace(',', ', ', $glob['LOGIC                                                                                                 S'] ?? '-'); ?></div></div>
+        <div class="info-box"><div class="info-label">Moduły</div><div class="in                                                                                                 fo-value" style="font-size:11px;"><?php echo $vals['Modules']; ?></div></div>
+        <div class="info-box"><div class="info-label">TG Default</div><div class                                                                                                 ="info-value hl"><?php echo $vals['DefaultTG']; ?></div></div>
+        <div class="info-box"><div class="info-label">TG Active</div><div class=                                                                                                 "info-value hl" id="tg-active">---</div></div>
+        <div class="info-box"><div class="info-label">Reflector</div><div class=                                                                                                 "info-value" id="ref-status">---</div></div>
+        <div class="info-box"><div class="info-label">Uptime</div><div class="in                                                                                                 fo-value" style="font-size:11px;"><?php echo shell_exec("uptime -p"); ?></div></                                                                                                 div>
+    </div>
+
+    <div class="tabs">
+        <button id="btn-Dashboard" class="tab-btn active" onclick="openTab(event                                                                                                 , 'Dashboard')">Dashboard</button>
+        <button id="btn-Nodes" class="tab-btn" onclick="openTab(event, 'Nodes')"                                                                                                 >Nodes</button>
+        <button id="btn-DTMF" class="tab-btn" onclick="openTab(event, 'DTMF')">D                                                                                                 TMF</button>
+        <button id="btn-Radio" class="tab-btn" onclick="openTab(event, 'Radio')"                                                                                                 >Radio</button>
+        <button id="btn-Audio" class="tab-btn" onclick="openTab(event, 'Audio')"                                                                                                 >Audio</button>
+        <button id="btn-SvxConfig" class="tab-btn" onclick="openTab(event, 'SvxC                                                                                                 onfig')">Config</button>
+        <button id="btn-WiFi" class="tab-btn" onclick="openTab(event, 'WiFi')">W                                                                                                 iFi</button>
+        <button id="btn-Power" class="tab-btn" onclick="openTab(event, 'Power')"                                                                                                 >Zasilanie</button>
+        <button id="btn-Logs" class="tab-btn" onclick="openTab(event, 'Logs')">L                                                                                                 ogi</button>
+        <button id="btn-Help" class="tab-btn" onclick="openTab(event, 'Help')">P                                                                                                 omoc</button>
+    </div>
+
+    <div id="Dashboard" class="tab-content active">
+        <div style="display:flex; justify-content:center; gap:40px; margin-top:1                                                                                                 0px; margin-bottom:20px; text-align:center; border-bottom: 1px solid #333; paddi                                                                                                 ng-bottom: 20px;">
+            <div><div style="font-size:30px;">📡</div><p style="margin:5px 0; fo                                                                                                 nt-size:12px;">Freq: <b><?php echo $radio['rx']; ?></b></p></div>
+            <div><div style="font-size:30px;">🌍</div><p style="margin:5px 0; fo                                                                                                 nt-size:12px;">Host: <b><?php echo $vals['Host']; ?></b></p></div>
+            <div><div style="font-size:30px;">🆔</div><p style="margin:5px 0; fo                                                                                                 nt-size:12px;">Znak: <b><?php echo $vals['Callsign']; ?></b></p></div>
+        </div>
+        <div id="live-monitor" class="live-box"><div class="live-status">STAN: C                                                                                                 ZUWANIE (Standby)</div><div class="live-callsign">---</div><div class="live-tg">                                                                                                 </div></div>
+        <h3 style="color: #4CAF50;">Ostatnio Słyszani (Last Heard)</h3>
+        <table class="lh-table"><thead><tr><th>Godzina</th><th>TG</th><th>Znak</                                                                                                 th></tr></thead><tbody id="lh-content"><tr><td colspan="3">Ładowanie...</td></tr                                                                                                 ></tbody></table>
+    </div>
+
+    <div id="DTMF" class="tab-content">
+        <div class="dtmf-columns">
+            <div class="panel-box">
+                <h4 class="panel-title">Reflector / Sieć FM</h4>
+                <div class="macro-grid">
+                    <button onclick="sendInstant('*91260#')" class="macro-btn">T                                                                                                 G 260</button>
+                    <button onclick="sendInstant('*912600#')" class="macro-btn">                                                                                                 TG 2600</button>
+                    <button onclick="sendInstant('*912607#')" class="macro-btn">                                                                                                 TG 2607</button>
+                    <button onclick="sendInstant('*91112#')" class="macro-btn">T                                                                                                 G 112</button>
+                    <button onclick="sendInstant('910#')" class="macro-btn red">                                                                                                 Odłącz (910)</button>
+                    <button onclick="sendInstant('*#')" class="macro-btn">Status                                                                                                  (*#)</button>
+                </div>
+            </div>
+
+            <div class="panel-box">
+                <h4 class="panel-title blue">EchoLink (Moduł 2)</h4>
+                <div style="margin-bottom:15px; border-bottom:1px solid #444; pa                                                                                                 dding-bottom:15px;">
+                    <button onclick="sendInstant('2#')" class="macro-btn green"                                                                                                  style="margin-bottom:10px;">1. Aktywuj Moduł (2#)</button>
+                    <div class="node-input-group">
+                        <input type="text" id="el-node-id" class="node-input" pl                                                                                                 aceholder="Nr Noda (np. 459342)">
+                        <button onclick="connectEchoLink()" class="macro-btn blu                                                                                                 e" style="width: auto;">Połącz</button>
+                    </div>
+                    <div class="macro-grid">
+                        <button onclick="sendInstant('9999#')" class="macro-btn"                                                                                                 >Test Echo (9999)</button>
+                        <button onclick="sendInstant('#')" class="macro-btn red"                                                                                                 >Rozłącz (#)</button>
+                    </div>
+                </div>
+                <div id="el-live-status">Sprawdzanie statusu...</div>
+            </div>
+
+
+            <div class="panel-box" style="grid-column: 1 / -1; border-color: #FF                                                                                                 9800;">
+                <h4 class="panel-title" style="color: #FF9800; border-color: #FF                                                                                                 9800;">🦜 Papuga (Test Audio)</h4>
+                <div style="display: flex; gap: 20px; align-items: center; flex-                                                                                                 wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <div class="macro-grid">
+                            <button onclick="sendInstant('1#')" class="macro-btn                                                                                                  orange" style="font-size: 16px; padding: 15px;">▶️ Włącz Papugę (1#)</button>
+                            <button onclick="sendInstant('#')" class="macro-btn                                                                                                  red" style="font-size: 16px; padding: 15px;">⏹️ Wyłącz / Stop (#)</button>
+                        </div>
+                    </div>
+                    <div style="flex: 1; font-size: 13px; color: #ccc; backgroun                                                                                                 d: #222; padding: 10px; border-radius: 5px; border-left: 3px solid #FF9800;">
+                        <strong>Jak używać?</strong>
+                        <ol style="margin: 5px 0; padding-left: 20px; line-heigh                                                                                                 t: 1.6;">
+                            <li>Kliknij <span style="color:#FF9800; font-weight:                                                                                                 bold;">Włącz Papugę</span>. Usłyszysz komunikat "Moduł Papuga".</li>
+                            <li>Wciśnij PTT w radiu, powiedz kilka słów ("Test,                                                                                                  raz, dwa...") i puść PTT.</li>
+                            <li>Hotspot powinien odesłać Twój głos. Jeśli słyszy                                                                                                 sz siebie czysto – audio jest OK.</li>
+                            <li>Kliknij <span style="color:#F44336; font-weight:                                                                                                 bold;">Wyłącz</span>, aby zakończyć test.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h3 style="border-top:1px solid #444; paddingTop:20px;">Klawiatura Numer                                                                                                 yczna</h3>
+        <div class="dtmf-display" id="dtmf-screen">...</div>
+        <div class="dtmf-grid"><button onclick="typeKey('1')" class="dtmf-btn">1                                                                                                 </button><button onclick="typeKey('2')" class="dtmf-btn">2</button><button oncli                                                                                                 ck="typeKey('3')" class="dtmf-btn">3</button><button onclick="typeKey('4')" clas                                                                                                 s="dtmf-btn">4</button><button onclick="typeKey('5')" class="dtmf-btn">5</button                                                                                                 ><button onclick="typeKey('6')" class="dtmf-btn">6</button><button onclick="type                                                                                                 Key('7')" class="dtmf-btn">7</button><button onclick="typeKey('8')" class="dtmf-                                                                                                 btn">8</button><button onclick="typeKey('9')" class="dtmf-btn">9</button><button                                                                                                  onclick="typeKey('*')" class="dtmf-btn">*</button><button onclick="typeKey('0')                                                                                                 " class="dtmf-btn">0</button><button onclick="typeKey('#')" class="dtmf-btn">#</                                                                                                 button><button onclick="clearKey()" class="dtmf-btn dtmf-clear">C</button><butto                                                                                                 n onclick="submitTG()" class="dtmf-btn dtmf-tg">TG</button><button onclick="subm                                                                                                 itKey()" class="dtmf-btn dtmf-send">TX</button></div>
+        <p style="font-size:12px; color:#888; text-align:center;"><b>C</b>=Kasuj                                                                                                 , <b>TG</b>=Ustaw Grupę (*91..#), <b>TX</b>=Wyślij Kod</p>
+    </div>
+
+    <div id="Audio" class="tab-content">
+        <?php echo isset($audio_msg) ? $audio_msg : ''; ?>
+        <h3>Mikser Audio</h3>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" valu                                                                                                 e="Audio">
+            <div class="form-grid">
+                <div class="audio-card highlight">
+                    <h4 class="audio-title green">Odbiór (RX)</h4>
+                    <div class="switch-row"><div class="switch-label">MIC1</div>                                                                                                 <input type="checkbox" name="Mic1_Cap_Sw" value="1" <?php if($audio['Mic1_Cap_Sw                                                                                                 ']) echo "checked"; ?>></div>
+                    <div class="slider-group"><div class="slider-header"><span>M                                                                                                 ic1 Boost</span><span class="slider-val"><?php echo $audio['Mic1_Boost']; ?>/7</                                                                                                 span></div><input type="range" name="boost1_vol" min="0" max="7" value="<?php ec                                                                                                 ho $audio['Mic1_Boost']; ?>" oninput="document.getElementById('v_b1').innerText=                                                                                                 this.value"></div>
+                    <div class="slider-group"><div class="slider-header"><span>A                                                                                                 DC Gain</span><span class="slider-val"><?php echo $audio['ADC_Gain']; ?>/7</span                                                                                                 ></div><input type="range" name="adc_vol" min="0" max="7" value="<?php echo $aud                                                                                                 io['ADC_Gain']; ?>"></div>
+                </div>
+                <div class="audio-card">
+                    <h4 class="audio-title">Inne Wejścia</h4>
+                    <div class="switch-row"><div class="switch-label">MIC2</div>                                                                                                 <input type="checkbox" name="Mic2_Cap_Sw" value="1" <?php if($audio['Mic2_Cap_Sw                                                                                                 ']) echo "checked"; ?>></div>
+                    <div class="slider-group"><div class="slider-header"><span>M                                                                                                 ic2 Boost</span><span class="slider-val"><?php echo $audio['Mic2_Boost']; ?>/7</                                                                                                 span></div><input type="range" name="boost2_vol" min="0" max="7" value="<?php ec                                                                                                 ho $audio['Mic2_Boost']; ?>"></div>
+                    <div class="switch-row"><div class="switch-label">Line In</d                                                                                                 iv><input type="checkbox" name="LineIn_Cap_Sw" value="1" <?php if($audio['LineIn                                                                                                 _Cap_Sw']) echo "checked"; ?>></div>
+                    <div class="switch-row"><div class="switch-label">Mixer</div                                                                                                 ><input type="checkbox" name="Mixer_Cap_Sw" value="1" <?php if($audio['Mixer_Cap                                                                                                 _Sw']) echo "checked"; ?>></div>
+                </div>
+                <div class="audio-card highlight" style="border-color:#2196F3;">
+                    <h4 class="audio-title" style="color:#2196F3;">Nadawanie (TX                                                                                                 )</h4>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">Line Out</div><input type="checkbox" name="LineOut_Sw" value="1"                                                                                                  <?php if($audio['LineOut_Sw']) echo "checked"; ?>></div><div class="slider-head                                                                                                 er"><span>Line Out Volume</span><span class="slider-val"><?php echo $audio['Line                                                                                                 Out_Vol']; ?>/31</span></div><input type="range" name="out_vol" min="0" max="31"                                                                                                  value="<?php echo $audio['LineOut_Vol']; ?>"></div>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">DAC</div><input type="checkbox" name="DAC_Sw" value="1" <?php if                                                                                                 ($audio['DAC_Sw']) echo "checked"; ?>></div><div class="slider-header"><span>DAC                                                                                                  Vol</span><span class="slider-val"><?php echo $audio['DAC_Vol']; ?>/63</span></                                                                                                 div><input type="range" name="dac_vol" min="0" max="63" value="<?php echo $audio                                                                                                 ['DAC_Vol']; ?>"></div>
+                </div>
+                <div class="audio-card">
+                    <h4 class="audio-title">Odsłuch (Loopback)</h4>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">Mic1 PB</div><input type="checkbox" name="Mic1_PB_Sw" value="1"                                                                                                  <?php if($audio['Mic1_PB_Sw']) echo "checked"; ?>></div><input type="range" name                                                                                                 ="mic1_pb_vol" min="0" max="7" value="<?php echo $audio['Mic1_PB_Vol']; ?>"></di                                                                                                 v>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">Mic2 PB</div><input type="checkbox" name="Mic2_PB_Sw" value="1"                                                                                                  <?php if($audio['Mic2_PB_Sw']) echo "checked"; ?>></div><input type="range" name                                                                                                 ="mic2_pb_vol" min="0" max="7" value="<?php echo $audio['Mic2_PB_Vol']; ?>"></di                                                                                                 v>
+                    <div class="slider-group"><div class="switch-row"><div class                                                                                                 ="switch-label">LineIn PB</div><input type="checkbox" name="LineIn_PB_Sw" value=                                                                                                 "1" <?php if($audio['LineIn_PB_Sw']) echo "checked"; ?>></div><input type="range                                                                                                 " name="linein_pb_vol" min="0" max="7" value="<?php echo $audio['LineIn_PB_Vol']                                                                                                 ; ?>"></div>
+                </div>
+            </div>
+            <button type="submit" name="save_audio" class="btn btn-green">Zapisz                                                                                                  Ustawienia Audio</button>
+        </form>
+        <hr style="border:0; border-top:1px solid #444; margin:30px 0;">
+        <form method="post"><input type="hidden" name="active_tab" class="active                                                                                                 -tab-input" value="Audio"><button type="submit" name="reset_audio_defaults" clas                                                                                                 s="btn btn-red" onclick="return confirm('UWAGA: To przywróci ustawienia audio do                                                                                                  zdefiniowanych wartości domyślnych i zrestartuje SvxLink. Połączenie zostanie p                                                                                                 rzerwane na chwilę. Kontynuować?')">⚠️ Przywróć Domyślne Audio (Z pliku)</button>                                                                                                 </form>
+    </div>
+
+    <div id="Radio" class="tab-content">
+        <h3>Ustawienia Radia</h3>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" valu                                                                                                 e="Radio">
+            <div class="form-grid">
+                <div class="form-group"><label>RX Freq</label><input type="text"                                                                                                  name="rx" value="<?php echo $radio['rx']; ?>"></div>
+                <div class="form-group"><label>TX Freq</label><input type="text"                                                                                                  name="tx" value="<?php echo $radio['tx']; ?>"></div>
+                <div class="form-group">
+                    <label>CTCSS (Ton blokady)</label>
+                    <select name="ctcss">
+                        <?php
+                            foreach($CTCSS_MAP as $code => $label) {
+                                $sel = ($radio['ctcss'] == $code) ? 'selected' :                                                                                                  '';
+                                echo "<option value='$code' $sel>$label ($code)<                                                                                                 /option>";
+                            }
+                        ?>
+                    </select>
+                </div>
+                <div class="form-group"><label>Squelch</label><select name="sq">                                                                                                 <?php foreach([1,2,3,4,6,8] as $s) echo "<option value='$s' ".($radio['sq']==$s?                                                                                                 'selected':'').">$s</option>"; ?></select></div>
+            </div>
+            <button type="submit" name="save_radio" class="btn btn-green">Progra                                                                                                 muj Radio</button>
+        </form>
+    </div>
+
+    <div id="SvxConfig" class="tab-content">
+        <h3>Konfiguracja SvxLink</h3>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" valu                                                                                                 e="SvxConfig">
+            <div class="form-grid">
+                <div class="panel-box">
+                    <h4 class="panel-title">Reflector (FM Poland)</h4>
+                    <div class="form-group"><label>Znak Noda</label><input type=                                                                                                 "text" name="Callsign" value="<?php echo $vals['Callsign']; ?>"></div>
+                    <div class="form-group"><label>Hasło</label><input type="pas                                                                                                 sword" name="Password" value="<?php echo $vals['Password']; ?>"></div>
+                    <div class="form-group"><label>Host</label><input type="text                                                                                                 " name="Host" value="<?php echo $vals['Host']; ?>"></div>
+                    <div class="form-group"><label>Domyślna Grupa (TG)</label><i                                                                                                 nput type="text" name="DefaultTG" value="<?php echo $vals['DefaultTG']; ?>"></di                                                                                                 v>
+                </div>
+                <div class="panel-box">
+                    <h4 class="panel-title blue">EchoLink</h4>
+                    <div class="form-group"><label>Znak EchoLink</label><input t                                                                                                 ype="text" name="EL_Callsign" value="<?php echo $vals_el['Callsign']; ?>"></div>
+                    <div class="form-group"><label>Hasło EchoLink</label><input                                                                                                  type="password" name="EL_Password" value="<?php echo $vals_el['Password']; ?>"><                                                                                                 /div>
+                    <div class="form-group"><label>Nazwa Sysop (Widoczna)</label                                                                                                 ><input type="text" name="EL_Sysop" value="<?php echo $vals_el['Sysop']; ?>"></d                                                                                                 iv>
+                    <div class="form-group"><label>Opis Stacji</label><input typ                                                                                                 e="text" name="EL_Desc" value="<?php echo $vals_el['Desc']; ?>"></div>
+                    <div class="form-group"><label>Proxy (IP)</label><input type                                                                                                 ="text" name="EL_ProxyHost" value="<?php echo $vals_el['Proxy']; ?>" placeholder                                                                                                 ="np. 44.31.61.106"><small style="color:#888; font-size:10px;">Zostaw puste aby                                                                                                  wyłączyć proxy.</small></div>
+                    <div style="margin-top:5px; display:flex; gap:10px; align-it                                                                                                 ems:center;">
+                        <button type="submit" name="auto_proxy" class="btn btn-g                                                                                                 reen" style="margin:0; padding:8px; font-size:12px;" onclick="return confirm('Sk                                                                                                 rypt pobierze listę publicznych proxy, znajdzie serwer Ready i zrestartuje SvxLi                                                                                                 nk. Kontynuować?')">♻️ Znajdź i ustaw Auto-Proxy</button>
+                        <a href="http://www.echolink.org/proxylist.jsp" target="                                                                                                 _blank" style="color:#2196F3; text-decoration:underline; font-size:11px;">Lista                                                                                                  WWW</a>
+                    </div>
+                </div>
+
+                <div class="panel-box" style="grid-column: 1 / -1;">
+                    <h4 class="panel-title green">Zaawansowane / Audio</h4>
+                    <div class="form-grid" style="grid-template-columns: repeat(                                                                                                 auto-fit, minmax(150px, 1fr));">
+                        <div class="form-group"><label>TG Timeout (s)</label><in                                                                                                 put type="text" name="TgTimeout" value="<?php echo $vals['TgTimeout']; ?>"></div                                                                                                 >
+                        <div class="form-group"><label>Tmp Timeout (s)</label><i                                                                                                 nput type="text" name="TmpTimeout" value="<?php echo $vals['TmpTimeout']; ?>"></                                                                                                 div>
+                        <div class="form-group"><label>Beep 3-ton</label><select                                                                                                  name="Beep3Tone"><option value="1" <?php if($vals['Beep3Tone']=='1') echo 'sele                                                                                                 cted'; ?>>TAK</option><option value="0" <?php if($vals['Beep3Tone']=='0') echo '                                                                                                 selected'; ?>>NIE</option></select></div>
+                        <div class="form-group"><label>Zapowiedź TG</label><sele                                                                                                 ct name="AnnounceTG"><option value="1" <?php if($vals['AnnounceTG']=='1') echo '                                                                                                 selected'; ?>>TAK</option><option value="0" <?php if($vals['AnnounceTG']=='0') e                                                                                                 cho 'selected'; ?>>NIE</option></select></div>
+                        <div class="form-group"><label>Info Link</label><select                                                                                                  name="RefStatusInfo"><option value="1" <?php if($vals['RefStatusInfo']=='1') ech                                                                                                 o 'selected'; ?>>TAK</option><option value="0" <?php if($vals['RefStatusInfo']==                                                                                                 '0') echo 'selected'; ?>>NIE</option></select></div>
+                        <div class="form-group"><label>Roger Beep</label><select                                                                                                  name="RogerBeep"><option value="1" <?php if($vals['RogerBeep']=='1') echo 'sele                                                                                                 cted'; ?>>TAK</option><option value="0" <?php if($vals['RogerBeep']=='0') echo '                                                                                                 selected'; ?>>NIE</option></select></div>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" name="save_svx_full" class="btn btn-blue">Zapi                                                                                                 sz Wszystko i Restartuj</button>
+        </form>
+    </div>
+
+    <div id="WiFi" class="tab-content">
+        <div class="panel-box" style="text-align:center; margin-bottom:15px;">
+            <h4 class="panel-title blue">Status Połączenia</h4>
+            <div id="wifi-tab-status" style="font-weight:bold; font-size:18px; c                                                                                                 olor:#fff;">Ładowanie...</div>
+            <div id="wifi-tab-ip" style="color:#4CAF50; margin-top:5px;">...</di                                                                                                 v>
+        </div>
+        <h3>Zarządzanie WiFi</h3><form method="post" style="margin-bottom: 20px;                                                                                                 "><input type="hidden" name="active_tab" class="active-tab-input" value="WiFi"><                                                                                                 button type="submit" name="wifi_scan" class="btn btn-blue">Skanuj Sieci</button>                                                                                                 </form><?php if (!empty($wifi_scan_results)): ?><div style="max-height:200px; ov                                                                                                 erflow-y:auto;"><table class="lh-table"><tbody><?php foreach($wifi_scan_results                                                                                                  as $w): ?><tr class="wifi-row" onclick="selectWifi('<?php echo htmlspecialchars(                                                                                                 $w['ssid']); ?>')"><td><b><?php echo $w['ssid']; ?></b></td><td><?php echo $w['s                                                                                                 ignal']; ?>%</td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?><                                                                                                 form method="post" style="margin-top:10px;"><input type="hidden" name="active_ta                                                                                                 b" class="active-tab-input" value="WiFi"><input type="text" id="wifi-ssid" name=                                                                                                 "ssid" placeholder="SSID"><input type="password" name="pass" placeholder="Hasło"                                                                                                  style="margin-top:5px;"><button type="submit" name="wifi_connect" class="btn bt                                                                                                 n-green">Połącz</button></form>
+    </div>
+
+    <div id="Power" class="tab-content">
+        <h4 class="panel-title">Zarządzanie Zasilaniem</h4>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" valu                                                                                                 e="Power">
+            <button type="submit" name="restart_srv" class="btn btn-blue" style=                                                                                                 "margin-bottom:15px;">Restart Usługi SvxLink</button>
+            <div style="height:10px;"></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap:15px;                                                                                                 ">
+                <button type="submit" name="reboot_device" class="btn btn-orange                                                                                                 " onclick="return confirm('Czy na pewno chcesz zrestartować CAŁY system?')">🔄 R                                                                                                 estart Urządzenia (Reboot)</button>
+                <button type="submit" name="shutdown_device" class="btn btn-red"                                                                                                  onclick="return confirm('Czy na pewno chcesz WYŁĄCZYĆ urządzenie?')">🛑 Wyłącz                                                                                                  Urządzenie (Shutdown)</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="Nodes" class="tab-content">
+        <h3>Aktywne Węzły</h3>
+        <div class="nodes-container" id="nodes-content">Ładowanie...</div>
+    </div>
+
+<div id="Help" class="tab-content">
+        <h3>Podręcznik Użytkownika</h3>
+        <div class="help-section">
+            <div class="help-title"><span class="help-icon">📡</span> 1. Dashboa                                                                                                 rd & Status</div>
+            <div class="help-text">
+                To główne centrum dowodzenia. Widzisz tutaj:
+                <ul>
+                    <li><strong>Freq:</strong> Aktualna częstotliwość radia.</li                                                                                                 >
+                    <li><strong>Live Monitor:</strong> Pokazuje kto aktualnie na                                                                                                 daje (Callsign, TG). Tło zmienia się na zielone podczas odbioru.</li>
+                    <li><strong>Last Heard:</strong> Lista ostatnich 20 stacji,                                                                                                  które były słyszane w sieci.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <div class="help-title"><span class="help-icon">🎛️</span> 2. DTMF & S                                                                                                 terowanie</div>
+            <div class="help-text">
+                W tej zakładce możesz wysyłać komendy do hotspota bez użycia rad                                                                                                 ia.
+                <div class="help-step">
+                    <strong>Reflector :</strong><br>
+                    Użyj przycisków "TG...", aby zmienić grupę rozmowną.<br>
+                    Aby się rozłączyć, kliknij <strong>Odłącz (910)</strong>.
+                </div>
+                <div class="help-step">
+                    <strong>EchoLink (Moduł 2):</strong><br>
+                    Działa inaczej niż Reflektor. Musisz najpierw "wejść do poko                                                                                                 ju".<br>
+                    1. Kliknij <strong>Aktywuj Moduł (2#)</strong>.<br>
+                    2. Wpisz numer noda w polu tekstowym i kliknij <strong>Połąc                                                                                                 z</strong>.<br>
+                    3. Aby zakończyć rozmowę, kliknij <strong>Rozłącz (#)</stron                                                                                                 g>.
+                </div>
+                <div class="help-warn">
+                    <strong>Uwaga:</strong> Nie możesz być połączony z Reflektor                                                                                                 em i EchoLinkiem jednocześnie. Aktywacja EchoLinka wycisza Reflektor.
+                </div>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <div class="help-title"><span class="help-icon">⚙️</span> 3. Config &                                                                                                  Proxy</div>
+            <div class="help-text">
+                Tutaj zmienisz swoje dane (Znak, Hasło).
+                <div class="help-step">
+                    <strong>Problem z EchoLinkiem?</strong><br>
+                    Jeśli używasz internetu mobilnego (np. T-Mobile), musisz uży                                                                                                 wać Proxy.<br>
+                    Jeśli rozłącza Cię ("Disconnected"), kliknij zielony przycis                                                                                                 k <strong>♻️ Znajdź i ustaw Auto-Proxy</strong>. System sam znajdzie działający s                                                                                                 erwer.
+                </div>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <div class="help-title"><span class="help-icon">🔊</span> 4. Audio &                                                                                                  Radio</div>
+            <div class="help-text">
+                <ul>
+                    <li><strong>Radio:</strong> Tutaj zmienisz częstotliwość i t                                                                                                 on CTCSS. System automatycznie dopasuje format tonu do Twojego modułu.</li>
+                    <li><strong>Audio:</strong> Suwaki głośności. <span style="c                                                                                                 olor:#F44336;">Ostrożnie z suwakiem Mic Boost!</span> Zazwyczaj powinien być na                                                                                                  0.</li>
+                    <li><strong>Strefa Ratunkowa:</strong> Jeśli dźwięk przestan                                                                                                 ie działać, użyj przycisku "Przywróć Domyślne Audio".</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-section" style="border:none;">
+            <div class="help-title"><span class="help-icon">❓</span> Rozwiązywa                                                                                                 nie Problemów</div>
+            <div class="help-text">
+                <strong>Q: Nie słyszę nikogo na EchoLinku.</strong><br>
+                A: Sprawdź status w zakładce DTMF. Jeśli jest "DISCONNECTED", we                                                                                                 jdź w Config i użyj Auto-Proxy.<br><br>
+                <strong>Q: Radio "pierdzi" lub dźwięk jest zniekształcony.</stro                                                                                                 ng><br>
+                A: Zmniejsz "ADC Gain" w zakładce Audio. Prawdopodobnie sygnał j                                                                                                 est za głośny.<br><br>
+                <strong>Q: Dashboard nie reaguje.</strong><br>
+                A: Wejdź w zakładkę Zasilanie i kliknij "Restart Usługi SvxLink"                                                                                                 .
+            </div>
+        </div>
+    </div>
+
+    <div id="Logs" class="tab-content"><div id="log-content" class="log-box">...                                                                                                 </div></div>
+</div>
+
+<div class="main-footer">
+    SvxLink v1.9.99.36@master Copyright (C) 2003-2025 Tobias Blomberg / <span cl                                                                                                 ass="callsign-blue">SM0SVX</span><br>
+    Website design by <span class="callsign-blue">SQ7UTP</span>
+</div>
+
+<script>
+    // AJAX SETUP
+    $.ajaxSetup({ cache: false });
+
+    function selectWifi(ssid) { document.getElementById('wifi-ssid').value = ssi                                                                                                 d; }
+    var dtmfBuffer = ""; var display = document.getElementById("dtmf-screen");
+    function typeKey(key) { dtmfBuffer += key; display.innerHTML = dtmfBuffer; }
+    function clearKey() { dtmfBuffer = ""; display.innerHTML = "..."; }
+    function submitKey() { if(dtmfBuffer.length > 0) { sendAjax(dtmfBuffer); cle                                                                                                 arKey(); } }
+
+    // NAPRAWIONA FUNKCJA TG (DODAWANIE *91...#)
+    function submitTG() {
+        if(dtmfBuffer.length > 0) {
+            sendAjax("*91" + dtmfBuffer + "#");
+            clearKey();
+        }
+    }
+
+    function connectEchoLink() {
+        var node = document.getElementById('el-node-id').value;
+        if(node.length > 0) { sendAjax(node + "#"); }
+    }
+
+    function sendInstant(code) { sendAjax(code); }
+    function sendAjax(code) { $.post("index.php", {ajax_dtmf: code}, function(re                                                                                                 sult) { console.log(result); }); }
+
+    function openTab(evt, tabName) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display =                                                                                                  "none"; }
+        tablinks = document.getElementsByClassName("tab-btn");
+        for (i = 0; i < tablinks.length; i++) { tablinks[i].className = tablinks                                                                                                 [i].className.replace(" active", ""); }
+        document.getElementById(tabName).style.display = "block";
+        if(evt) { evt.currentTarget.className += " active"; } else { var btn = d                                                                                                 ocument.getElementById("btn-" + tabName); if(btn) btn.className += " active"; }
+        var inputs = document.getElementsByClassName("active-tab-input");
+        for(var j=0; j<inputs.length; j++) { inputs[j].value = tabName; }
+    }
+    var startTab = "<?php echo $active_tab; ?>"; if (!startTab) startTab = "Dash                                                                                                 board"; openTab(null, startTab);
+
+    function updateStats() {
+        $.getJSON('index.php?ajax_stats=1', function(stats) {
+            $("#t-temp").text(stats.temp + "°C"); $("#t-temp-bar").css("width",                                                                                                  Math.min(stats.temp, 100) + "%").attr("class", "progress-fill " + (stats.temp>70                                                                                                 ?'p-red':(stats.temp>60?'p-orange':'')));
+            $("#t-ram").text(stats.ram_percent + "%"); $("#t-ram-bar").css("widt                                                                                                 h", stats.ram_percent + "%").attr("class", "progress-fill " + (stats.ram_percent                                                                                                 >90?'p-red':(stats.ram_percent>70?'p-orange':'')));
+            $("#t-disk").text(stats.disk_percent + "%"); $("#t-disk-bar").css("w                                                                                                 idth", stats.disk_percent + "%").attr("class", "progress-fill " + (stats.disk_pe                                                                                                 rcent>90?'p-red':''));
+            $("#t-hw").text(stats.hw.substring(0, 25) + (stats.hw.length>25?"...                                                                                                 ":""));
+
+            // NETWORK UPDATE
+            $("#t-net-type").text(stats.net_type + (stats.net_type == "WiFi" ? "                                                                                                  (" + stats.ssid + ")" : ""));
+            $("#t-ip").text(stats.ip);
+            $("#wifi-tab-status").text(stats.net_type + (stats.net_type == "WiFi                                                                                                 " ? ": " + stats.ssid : ""));
+            $("#wifi-tab-ip").text("IP: " + stats.ip);
+        });
+    }
+
+    function loadLogsAndStatus() {
+        $.get('logs.php?t=' + Date.now(), function(data) {
+            $('#log-content').html(data);
+
+            // 1. STATUS REFLEKTORA (Poprawiona logika: ostatnie zdarzenie wygry                                                                                                 wa)
+            let lastConnect = data.lastIndexOf("ReflectorLogic: Connection estab                                                                                                 lished");
+            let lastDisconnect = data.lastIndexOf("ReflectorLogic: Disconnected"                                                                                                 );
+            let lastAuthFail = data.lastIndexOf("ReflectorLogic: Authentication                                                                                                  failed");
+            let lastBad = Math.max(lastDisconnect, lastAuthFail);
+
+            if (lastConnect > lastBad) {
+                 $("#main-status-text").text("ONLINE (Reflector)").removeClass("                                                                                                 inactive").addClass("active");
+                 $("#main-status-dot").removeClass("red").addClass("green").addC                                                                                                 lass("blink");
+                 $("#ref-status").html("PODŁĄCZONY").css("color", "#4CAF50");
+            } else {
+                 $("#main-status-text").text("OFFLINE (Reflector)").removeClass(                                                                                                 "active").addClass("inactive");
+                 $("#main-status-dot").removeClass("green").addClass("red").remo                                                                                                 veClass("blink");
+                 $("#ref-status").html("ROZŁĄCZONY").css("color", "#F44336");
+            }
+
+            // 2. STATUS ECHOLINK
+            let lastOn = data.lastIndexOf("EchoLink directory status changed to                                                                                                  ON");
+            let lastOff = Math.max(data.lastIndexOf("EchoLink directory status c                                                                                                 hanged to ?"), data.lastIndexOf("Disconnected from EchoLink proxy"));
+            if (lastOn > lastOff) { $("#el-live-status").text("CONNECTED").remov                                                                                                 eClass("el-disconnected").addClass("el-connected"); }
+            else { $("#el-live-status").text("DISCONNECTED - Sprawdź Config!").r                                                                                                 emoveClass("el-connected").addClass("el-disconnected"); }
+
+            // 3. DETEKCJA ROZMOWY
+            let lastStartPos = -1; let lastStopPos = -1; let currentCallsign = "                                                                                                 "; let currentTG = "";
+            let talkerRegex = /Talker start on TG #(\d+): ([A-Z0-9-\/]+)/g;
+            let match; while ((match = talkerRegex.exec(data)) !== null) { lastS                                                                                                 tartPos = match.index; currentTG = match[1]; currentCallsign = match[2]; }
+            let stopRegex = /Talker stop on TG/g; while ((match = stopRegex.exec                                                                                                 (data)) !== null) { lastStopPos = match.index; }
+
+            if (lastStartPos > lastStopPos && lastStartPos !== -1) {
+                $(".live-status").text("ODBIERANIE...").css("color", "#4CAF50");
+                $(".live-callsign").text(currentCallsign).css("color", "#4CAF50"                                                                                                 );
+                $(".live-tg").text("TG " + currentTG).css("color", "#FF9800");
+                $(".live-box").addClass("talking");
+            } else {
+                $(".live-status").text("STAN: CZUWANIE (Standby)").css("color",                                                                                                  "#666");
+                $(".live-callsign").text("---").css("color", "#fff");
+                $(".live-tg").text("");
+                $(".live-box").removeClass("talking");
+            }
+        });
+        $.get('last_heard.php?t=' + Date.now(), function(data) { $('#lh-content'                                                                                                 ).html(data); });
+
+        $.getJSON('nodes.php?t=' + Date.now(), function(nodes) {
+            let html = ""; let myCall = "<?php echo $vals['Callsign']; ?>";
+            let sortedKeys = Object.keys(nodes).sort();
+            if(nodes[myCall]) { sortedKeys = sortedKeys.filter(n => n !== myCall                                                                                                 ); sortedKeys.unshift(myCall); }
+            if (sortedKeys.length === 0) { html = "<div style='color:#777; grid-                                                                                                 column:1/-1; text-align:center;'>Brak danych...</div>"; }
+            else {
+                sortedKeys.forEach(call => {
+                    let info = nodes[call];
+                    let isMe = (call === myCall);
+                    let style = isMe ? "border-color:#4CAF50; background:#2e352e                                                                                                 ;" : "";
+                    let tgBadge = (info.tg && info.tg !== '' && info.tg !== '?')                                                                                                  ? `<div style="margin-left:auto; background:#FF9800; color:#000; font-size:10px                                                                                                 ; padding:2px 5px; border-radius:3px; font-weight:bold;">TG ${info.tg}</div>` :                                                                                                  '';
+                    html += `<div class="node-item" style="${style}"><div class=                                                                                                 "node-icon">📻</div><div class="node-name">${call} ${isMe ? '(TY)' : ''}</div>${                                                                                                 tgBadge}</div>`;
+                });
+            }
+            $("#nodes-content").html(html);
+        });
+    }
+
+    setInterval(loadLogsAndStatus, 1500);
+    setInterval(updateStats, 3000);
+    loadLogsAndStatus();
+    updateStats();
+</script>
+
+</body>
+</html>

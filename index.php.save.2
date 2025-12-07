@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        h2 {
+            color: #333;
+        }
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+            display: inline-block;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+            font-size: 17px;
+        }
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        .tab button.active {
+            background-color: #ccc;
+        }
+        .tabcontent {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-top: none;
+            background-color: white;
+            border-radius: 5px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            padding: 10px;
+        }
+        .button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .b-red { background-color: #f44336; }
+        .b-grey { background-color: #808080; }
+        
+        .dtmf-sub {
+            display: block;
+            font-size: 0.65em;
+            margin-top: 4px;
+            font-weight: normal;
+            color: #ffcc00;
+            text-shadow: 0 0 5px rgba(255, 204, 0, 0.6);
+        }
+
+        ul { list-style-type: none; padding: 0; }
+        li { 
+            background: #eee; 
+            margin: 5px 0; 
+            padding: 10px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        input[type=text], input[type=password] {
+            width: 80%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="tab">
+        <button class="tablinks" onclick="openTab(event, 'dashboard')">Dashboard</button>
+        <button class="tablinks" onclick="openTab(event, 'wifi')">WiFi</button>
+        <button class="tablinks" onclick="openTab(event, 'config')">Config</button>
+        <button class="tablinks" onclick="openTab(event, 'dtmf')">DTMF</button>
+        <button class="tablinks" onclick="openTab(event, 'update')">Update</button>
+    </div>
+
+    <div id="dashboard" class="tabcontent">
+        <h2>Status Systemu</h2>
+        <p>Witaj w panelu sterowania.</p>
+    </div>
+
+    <div id="wifi" class="tabcontent">
+        <h2>Ustawienia WiFi</h2>
+        <form action="/saveWifi" method="POST">
+            <input type="text" name="ssid" placeholder="SSID Sieci">
+            <input type="password" name="pass" placeholder="Hasło">
+            <br>
+            <button class="button" type="submit">Połącz</button>
+        </form>
+        <hr>
+        <div id="savedWifiList"></div>
+    </div>
+
+    <div id="config" class="tabcontent">
+        <h2>Konfiguracja</h2>
+        <p>Opcje konfiguracyjne...</p>
+    </div>
+
+    <div id="dtmf" class="tabcontent">
+        <h2>Sterowanie DTMF</h2>
+        <div class="grid-container">
+            
+            <button class="button" onmousedown="sendDTMF('26077')">
+                TG 26077<span class="dtmf-sub">Sierra Echo</span>
+            </button>
+
+            <button class="button" onmousedown="sendDTMF('235')">
+                TG 235<span class="dtmf-sub">Bridge UK</span>
+            </button>
+
+            <button class="button" onmousedown="sendDTMF('245')">
+                TG 245<span class="dtmf-sub">EchoLink</span>
+            </button>
+            
+            <button class="button" onmousedown="sendDTMF('2600')">
+                TG 2600<span class="dtmf-sub">Zagraniczna</span>
+            </button>
+
+            <button class="button" onmousedown="sendDTMF('260')">
+                TG 260<span class="dtmf-sub">Polska</span>
+            </button>
+
+            <button class="button" onmousedown="sendDTMF('260997')">
+                TG 260997<span class="dtmf-sub">Papuga</span>
+            </button>
+
+            <button class="button b-red" onmousedown="sendDTMF('4000')">
+                TG 4000<span class="dtmf-sub">Odłącz</span>
+            </button>
+
+            <button class="button b-grey" onmousedown="sendDTMF('5000')">
+                Status<span class="dtmf-sub">Info</span>
+            </button>
+
+        </div>
+    </div>
+
+    <div id="update" class="tabcontent">
+        <h2>Aktualizacja</h2>
+        <form method="POST" action="/update" enctype="multipart/form-data">
+            <input type="file" name="update">
+            <button class="button" type="submit">Aktualizuj</button>
+        </form>
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            if(evt) evt.currentTarget.className += " active";
+
+            localStorage.setItem('activeTab', tabName);
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const lastTab = localStorage.getItem('activeTab') || 'dashboard';
+            const tabButton = document.querySelector(`.tablinks[onclick*="${lastTab}"]`);
+            
+            if (tabButton) {
+                tabButton.click();
+            } else {
+                document.getElementById("dashboard").style.display = "block";
+            }
+            
+            getSavedWifi();
+        });
+
+        function sendDTMF(code) {
+            fetch('/dtmf?code=' + code)
+                .then(response => console.log('DTMF sent: ' + code))
+                .catch(error => console.error('Error:', error));
+        }
+
+        function getSavedWifi() {
+            fetch('/savedWifiList')
+                .then(response => response.json())
+                .then(data => {
+                    let listHtml = "<h3>Zapamiętane sieci:</h3><ul>";
+                    if (!data || data.length === 0) {
+                        listHtml += "<li>Brak zapisanych sieci.</li>";
+                    } else {
+                        data.forEach(ssid => {
+                            listHtml += `<li>
+                                <strong>${ssid}</strong> 
+                                <button onclick="deleteWifi('${ssid}')" style="background:red; color:white; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Usuń</button>
+                            </li>`;
+                        });
+                    }
+                    listHtml += "</ul>";
+                    document.getElementById("savedWifiList").innerHTML = listHtml;
+                })
+                .catch(err => console.log("Błąd pobierania WiFi"));
+        }
+
+        function deleteWifi(ssid) {
+            if(confirm("Czy na pewno usunąć sieć: " + ssid + "?")) {
+                fetch('/deleteWifi?ssid=' + encodeURIComponent(ssid))
+                .then(response => response.text())
+                .then(text => {
+                    alert(text);
+                    getSavedWifi();
+                });
+            }
+        }
+    </script>
+
+</body>
+</html>

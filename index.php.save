@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotspot SQ7UTP</title>
+    <style>
+        /* STYLIZACJA GLOWNA */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; background: #1e1e1e; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        header { background: #263238; padding: 20px; text-align: center; border-bottom: 3px solid #4CAF50; }
+        h1 { margin: 0; color: #fff; font-size: 24px; letter-spacing: 1px; }
+        .status-bar { margin-top: 10px; font-size: 14px; }
+        .active { color: #4CAF50; font-weight: bold; text-shadow: 0 0 5px rgba(76,175,80,0.3); }
+        .inactive { color: #F44336; font-weight: bold; }
+
+        /* ZAKŁADKI */
+        .tabs { display: flex; background: #333; flex-wrap: wrap; }
+        .tab-btn { flex: 1; padding: 15px; background: #2d2d2d; color: #aaa; border: none; cursor: pointer; border-bottom: 3px solid transparent; font-size: 14px; font-weight: 600; transition: 0.3s; border-right: 1px solid #444; min-width: 90px; }
+        .tab-btn:hover { background: #333; color: #fff; }
+        .tab-btn.active { background: #1e1e1e; color: #4CAF50; border-bottom: 3px solid #4CAF50; }
+        
+        .tab-content { display: none; background: #1e1e1e; padding: 25px; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* ELEMENTY UI */
+        .lh-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        .lh-table th { text-align: left; padding: 10px; background: #252525; color: #888; border-bottom: 2px solid #444; }
+        .lh-table td { padding: 10px; border-bottom: 1px solid #333; }
+        .badge-tg { background: #FF9800; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+        
+        .wifi-row:hover { background-color: #2a2a2a; cursor: pointer; color: #4CAF50; transition: 0.2s; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 13px; color: #bbb; font-weight: bold; }
+        input[type="text"], input[type="password"], select { width: 100%; padding: 10px; background: #2c2c2c; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box; }
+        
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.2s; }
+        .btn-green { background-color: #4CAF50; color: white; }
+        .btn-green:hover { background-color: #45a049; }
+        .btn-red { background-color: #e53935; color: white; }
+        .btn-red:hover { background-color: #d32f2f; }
+        .btn-blue { background-color: #2196F3; color: white; }
+        
+        /* DTMF KEYPAD STYLE */
+        .dtmf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 300px; margin: 0 auto; }
+        .dtmf-btn { padding: 20px; font-size: 24px; background: #333; border: 1px solid #444; color: #fff; border-radius: 8px; cursor: pointer; transition: 0.1s; }
+        .dtmf-btn:active { background: #4CAF50; transform: scale(0.95); }
+        .dtmf-macros { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 30px; }
+        .macro-btn { padding: 15px; background: #263238; border: 1px solid #37474F; color: #ddd; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold; }
+        .macro-btn:hover { background: #37474F; color: #fff; border-color: #4CAF50; }
+
+        /* INFO & LOGS */
+        .info-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px; padding: 15px; background: #252525; border-bottom: 1px solid #333; }
+        .info-box { text-align: center; padding: 5px; background: #2a2a2a; border-radius: 4px; }
+        .info-label { font-size: 10px; color: #888; text-transform: uppercase; }
+        .info-value { font-size: 13px; font-weight: bold; color: #eee; margin-top: 3px; word-break: break-word; }
+        .hl { color: #4CAF50; }
+        .log-box { background: #000; color: #0f0; padding: 15px; height: 500px; overflow-y: auto; font-family: monospace; font-size: 12px; border: 1px solid #444; white-space: pre-wrap; }
+        .wifi-console { background: #000; color: #00e5ff; padding: 15px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; border: 1px solid #444; margin-bottom: 15px; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center; }
+        .alert-success { background: rgba(76,175,80,0.2); border: 1px solid #4CAF50; color: #4CAF50; }
+        .alert-error { background: rgba(244,67,54,0.2); border: 1px solid #F44336; color: #F44336; }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+<?php
+    // --- ZAPAMIĘTYWANIE ZAKŁADKI ---
+    $active_tab = isset($_POST['active_tab']) ? $_POST['active_tab'] : 'Dashboard';
+
+    // --- FUNKCJE PHP ---
+    function parse_svxlink_conf_custom($file) {
+        $ini = []; $curr = "GLOBAL";
+        if (!file_exists($file)) return [];
+        $lines = file($file);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line) || $line[0] == '#' || $line[0] == ';') continue;
+            if ($line[0] == '[' && substr($line, -1) == ']') {
+                $curr = substr($line, 1, -1);
+                if (!isset($ini[$curr])) $ini[$curr] = [];
+            } else {
+                $parts = explode('=', $line, 2);
+                if (count($parts) == 2) $ini[$curr][trim($parts[0])] = trim(trim($parts[1]), '"\'');
+            }
+        }
+        return $ini;
+    }
+
+    $ini = parse_svxlink_conf_custom('/etc/svxlink/svxlink.conf');
+    $ref = $ini['ReflectorLogic'] ?? [];
+    $simp = $ini['SimplexLogic'] ?? [];
+    $glob = $ini['GLOBAL'] ?? [];
+
+    $vals = [
+        'Callsign' => $ref['CALLSIGN'] ?? 'N0CALL',
+        'Host' => $ref['HOSTS'] ?? '',
+        'Port' => $ref['HOST_PORT'] ?? '5295',
+        'Password' => $ref['AUTH_KEY'] ?? '',
+        'DefaultTG' => $ref['DEFAULT_TG'] ?? '0',
+        'MonitorTGs' => $ref['MONITOR_TGS'] ?? '',
+        'TgTimeout' => $ref['TG_SELECT_TIMEOUT'] ?? '60',
+        'TmpTimeout' => $ref['TMP_MONITOR_TIMEOUT'] ?? '3600',
+        'Modules' => $simp['MODULES'] ?? 'Help,Parrot,EchoLink',
+        'Beep3Tone' => $ref['TGSTBEEP_ENABLE'] ?? '0',
+        'AnnounceTG' => $ref['TGREANON_ENABLE'] ?? '0',
+        'RefStatusInfo' => $ref['REFCON_ENABLE'] ?? '0',
+        'RogerBeep' => $simp['RGR_SOUND_ALWAYS'] ?? '0',
+    ];
+    
+    $logics_str = $glob['LOGICS'] ?? '';
+    $rxmon_active = (strpos($logics_str, 'RXMonLogic') !== false) ? '1' : '0';
+
+    // Radio Config
+    $jsonFile = '/var/www/html/radio_config.json';
+    $radio = ["rx" => "432.8500", "tx" => "432.8500", "ctcss" => "0000", "sq" => "2"];
+    if (file_exists($jsonFile)) {
+        $loaded = json_decode(file_get_contents($jsonFile), true);
+        if ($loaded) $radio = array_merge($radio, $loaded);
+    }
+
+    // --- AKCJE DTMF ---
+if (isset($_POST['send_dtmf'])) {
+    $code = $_POST['send_dtmf']; // POPRAWKA: Pobieramy wartosc z przycisku
+    // Walidacja dla bezpieczenstwa (tylko cyfry, *, #)
+    if (preg_match('/^[0-9A-D*#]+$/', $code)) {
+        shell_exec("sudo /usr/local/bin/send_dtmf.sh " . escapeshellarg($code));
+    }
+}}
+
+    // --- AKCJE INNE ---
+    if (isset($_POST['save_svx_full'])) {
+        $newData = $_POST; unset($newData['save_svx_full']); unset($newData['active_tab']);
+        file_put_contents('/tmp/svx_new_settings.json', json_encode($newData));
+        $out = shell_exec('sudo /usr/bin/python3 /usr/local/bin/update_svx_full.py 2>&1');
+        shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &');
+        echo "<div class='alert alert-success'>Zapisano! Restartowanie... <br><small>$out</small></div><meta http-equiv='refresh' content='3'>";
+    }
+
+    if (isset($_POST['save_radio'])) {
+        $newRadio = ["rx"=>$_POST['rx'], "tx"=>$_POST['tx'], "ctcss"=>$_POST['ctcss'], "sq"=>$_POST['sq']];
+        file_put_contents($jsonFile, json_encode($newRadio));
+        $radio = $newRadio;
+        shell_exec('sudo /usr/bin/systemctl stop svxlink'); sleep(1);
+        $cmd = "sudo /usr/bin/python3 /usr/local/bin/setup_radio.py ".escapeshellarg($radio['rx'])." ".escapeshellarg($radio['tx'])." ".escapeshellarg($radio['ctcss'])." ".escapeshellarg($radio['sq'])." 2>&1";
+        $out = shell_exec($cmd);
+        shell_exec('sudo /usr/bin/systemctl start svxlink');
+        echo "<div class='alert alert-success'>Radio: $out</div>";
+    }
+    
+    if (isset($_POST['restart_srv'])) {
+        shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &');
+        echo "<div class='alert alert-success'>Restart...</div>";
+    }
+
+    $wifi_output = "";
+    if (isset($_POST['wifi_scan'])) {
+        shell_exec('sudo nmcli dev wifi rescan');
+        $raw = shell_exec('sudo nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list 2>&1');
+        $lines = explode("\n", $raw);
+        foreach($lines as $line) {
+            if(empty($line)) continue;
+            $parts = explode(':', $line); $sec = array_pop($parts); $sig = array_pop($parts); $ssid = implode(':', $parts);
+            if(!empty($ssid)) $wifi_scan_results[$ssid] = ['ssid'=>$ssid, 'signal'=>$sig, 'sec'=>$sec];
+        }
+        usort($wifi_scan_results, function($a, $b) { return $b['signal'] - $a['signal']; });
+    }
+    if (isset($_POST['wifi_list'])) { $wifi_output = shell_exec('sudo nmcli con show 2>&1'); }
+    if (isset($_POST['wifi_connect'])) {
+        $ssid = escapeshellarg($_POST['ssid']); $pass = escapeshellarg($_POST['pass']);
+        if (!empty($_POST['pass'])) $wifi_output = shell_exec("sudo nmcli dev wifi connect $ssid password $pass 2>&1");
+        else $wifi_output = shell_exec("sudo nmcli dev wifi connect $ssid 2>&1");
+    }
+    if (isset($_POST['wifi_delete'])) {
+        $ssid = escapeshellarg($_POST['ssid']); $wifi_output = shell_exec("sudo nmcli con delete $ssid 2>&1");
+    }
+?>
+
+<div class="container">
+    <header>
+        <h1>Hotspot <?php echo $vals['Callsign']; ?></h1>
+        <div class="status-bar">
+            <?php echo (trim(shell_exec("systemctl is-active svxlink")) == "active") ? 
+                "<span class='active'>● ONLINE</span>" : "<span class='inactive'>● OFFLINE</span>"; ?>
+        </div>
+    </header>
+
+    <div class="info-panel">
+        <div class="info-box"><div class="info-label">Logiki</div><div class="info-value" style="font-size:11px;"><?php echo str_replace(',', ', ', $glob['LOGICS'] ?? '-'); ?></div></div>
+        <div class="info-box"><div class="info-label">Moduły</div><div class="info-value" style="font-size:11px;"><?php echo $vals['Modules']; ?></div></div>
+        <div class="info-box"><div class="info-label">TG Default</div><div class="info-value hl"><?php echo $vals['DefaultTG']; ?></div></div>
+        <div class="info-box"><div class="info-label">TG Active</div><div class="info-value hl" id="tg-active">---</div></div>
+        <div class="info-box"><div class="info-label">Status TRX</div><div class="info-value" id="trx-status">---</div></div>
+        <div class="info-box"><div class="info-label">Reflector</div><div class="info-value" id="ref-status">---</div></div>
+        <div class="info-box"><div class="info-label">Uptime</div><div class="info-value" style="font-size:11px;"><?php echo shell_exec("uptime -p"); ?></div></div>
+    </div>
+
+    <div class="tabs">
+        <button id="btn-Dashboard" class="tab-btn active" onclick="openTab(event, 'Dashboard')">Dashboard</button>
+        <button id="btn-DTMF" class="tab-btn" onclick="openTab(event, 'DTMF')">DTMF / Makra</button>
+        <button id="btn-Radio" class="tab-btn" onclick="openTab(event, 'Radio')">Radio</button>
+        <button id="btn-SvxConfig" class="tab-btn" onclick="openTab(event, 'SvxConfig')">SVX Config</button>
+        <button id="btn-WiFi" class="tab-btn" onclick="openTab(event, 'WiFi')">WiFi</button>
+        <button id="btn-Power" class="tab-btn" onclick="openTab(event, 'Power')">Zasilanie</button>
+        <button id="btn-Logs" class="tab-btn" onclick="openTab(event, 'Logs')">Logi</button>
+    </div>
+
+    <div id="Dashboard" class="tab-content active">
+        <div style="display:flex; justify-content:center; gap:40px; margin-top:10px; margin-bottom:20px; text-align:center; border-bottom: 1px solid #333; padding-bottom: 20px;">
+            <div><div style="font-size:30px;">📡</div><p style="margin:5px 0; font-size:12px;">Freq: <b><?php echo $radio['rx']; ?></b></p></div>
+            <div><div style="font-size:30px;">🌍</div><p style="margin:5px 0; font-size:12px;">Host: <b><?php echo $vals['Host']; ?></b></p></div>
+            <div><div style="font-size:30px;">🆔</div><p style="margin:5px 0; font-size:12px;">Znak: <b><?php echo $vals['Callsign']; ?></b></p></div>
+        </div>
+        <h3 style="color: #4CAF50;">Ostatnio Słyszani (Last Heard)</h3>
+        <table class="lh-table">
+            <thead><tr><th>Godzina</th><th>TG</th><th>Znak</th></tr></thead>
+            <tbody id="lh-content"><tr><td colspan="3">Ładowanie...</td></tr></tbody>
+        </table>
+    </div>
+
+    <div id="DTMF" class="tab-content">
+        <h3>Szybki Wybór (Makra)</h3>
+        <div class="dtmf-macros">
+            <form method="post" style="display:contents">
+                <input type="hidden" name="active_tab" value="DTMF">
+                <button type="submit" name="send_dtmf" value="*91260#" class="macro-btn">TG 260 (Ogólnopolska)</button>
+                <button type="submit" name="send_dtmf" value="*912600#" class="macro-btn">TG 2600 (Pogaduchy)</button>
+                <button type="submit" name="send_dtmf" value="*912607#" class="macro-btn">TG 2607 (Łódzkie)</button>
+                <button type="submit" name="send_dtmf" value="*91112#" class="macro-btn">TG 112 (EmCom)</button>
+                <button type="submit" name="send_dtmf" value="91999#" class="macro-btn">EchoLink Test</button>
+                <button type="submit" name="send_dtmf" value="910#" class="macro-btn">Odłącz TG (910)</button>
+                <button type="submit" name="send_dtmf" value="9#" class="macro-btn">Papuga (*#)</button>
+                <button type="submit" name="send_dtmf" value="#" class="macro-btn">Wyłącz Papugę (#)</button>
+                <button type="submit" name="send_dtmf" value="*#" class="macro-btn">Status (*#)</button>
+            </form>
+        </div>
+
+        <h3 style="border-top:1px solid #444; paddingTop:20px;">Klawiatura</h3>
+        <form method="post">
+            <input type="hidden" name="active_tab" value="DTMF">
+            <div class="dtmf-grid">
+                <button type="submit" name="send_dtmf" value="1" class="dtmf-btn">1</button>
+                <button type="submit" name="send_dtmf" value="2" class="dtmf-btn">2</button>
+                <button type="submit" name="send_dtmf" value="3" class="dtmf-btn">3</button>
+                <button type="submit" name="send_dtmf" value="4" class="dtmf-btn">4</button>
+                <button type="submit" name="send_dtmf" value="5" class="dtmf-btn">5</button>
+                <button type="submit" name="send_dtmf" value="6" class="dtmf-btn">6</button>
+                <button type="submit" name="send_dtmf" value="7" class="dtmf-btn">7</button>
+                <button type="submit" name="send_dtmf" value="8" class="dtmf-btn">8</button>
+                <button type="submit" name="send_dtmf" value="9" class="dtmf-btn">9</button>
+                <button type="submit" name="send_dtmf" value="*" class="dtmf-btn">*</button>
+                <button type="submit" name="send_dtmf" value="0" class="dtmf-btn">0</button>
+                <button type="submit" name="send_dtmf" value="#" class="dtmf-btn">#</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="Radio" class="tab-content">
+        <h3>Ustawienia Radia</h3>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" value="Radio">
+            <div class="form-grid">
+                <div class="form-group"><label>RX Freq</label><input type="text" name="rx" value="<?php echo $radio['rx']; ?>"></div>
+                <div class="form-group"><label>TX Freq</label><input type="text" name="tx" value="<?php echo $radio['tx']; ?>"></div>
+                <div class="form-group"><label>CTCSS</label><input type="text" name="ctcss" value="<?php echo $radio['ctcss']; ?>"></div>
+                <div class="form-group"><label>Squelch</label>
+                    <select name="sq"><?php foreach([1,2,3,4,6,8] as $s) echo "<option value='$s' ".($radio['sq']==$s?'selected':'').">$s</option>"; ?></select>
+                </div>
+            </div>
+            <button type="submit" name="save_radio" class="btn btn-green">Programuj Radio</button>
+        </form>
+    </div>
+
+    <div id="SvxConfig" class="tab-content">
+        <h3>Konfiguracja SvxLink</h3>
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" value="SvxConfig">
+            <div class="form-grid">
+                <div>
+                    <div class="form-group"><label>Znak</label><input type="text" name="Callsign" value="<?php echo $vals['Callsign']; ?>"></div>
+                    <div class="form-group"><label>Hasło</label><input type="password" name="Password" value="<?php echo $vals['Password']; ?>"></div>
+                    <div class="form-group"><label>Host</label><input type="text" name="Host" value="<?php echo $vals['Host']; ?>"></div>
+                    <div class="form-group"><label>Moduły</label><input type="text" name="Modules" value="<?php echo $vals['Modules']; ?>"></div>
+                </div>
+                <div>
+                    <div class="form-group"><label>Default TG</label><input type="text" name="DefaultTG" value="<?php echo $vals['DefaultTG']; ?>"></div>
+                    <div class="form-group"><label>Monitor TGs</label><input type="text" name="MonitorTGs" value="<?php echo $vals['MonitorTGs']; ?>"></div>
+                    <div class="form-group"><label>Port</label><input type="text" name="Port" value="<?php echo $vals['Port']; ?>"></div>
+                    <div class="form-group"><label>Timeouty</label>
+                        <input type="text" name="TgTimeout" value="<?php echo $vals['TgTimeout']; ?>" style="width:45%">
+                        <input type="text" name="TmpTimeout" value="<?php echo $vals['TmpTimeout']; ?>" style="width:45%">
+                    </div>
+                </div>
+            </div>
+            <hr style="border:0; border-top:1px solid #444; margin:20px 0;">
+            <div class="form-grid">
+                <div class="form-group"><label>Beep 3-ton</label><select name="Beep3Tone"><option value="1" <?php if($vals['Beep3Tone']=='1') echo 'selected'; ?>>TAK</option><option value="0" <?php if($vals['Beep3Tone']=='0') echo 'selected'; ?>>NIE</option></select></div>
+                <div class="form-group"><label>Zapowiedź TG</label><select name="AnnounceTG"><option value="1" <?php if($vals['AnnounceTG']=='1') echo 'selected'; ?>>TAK</option><option value="0" <?php if($vals['AnnounceTG']=='0') echo 'selected'; ?>>NIE</option></select></div>
+                <div class="form-group"><label>Info Link</label><select name="RefStatusInfo"><option value="1" <?php if($vals['RefStatusInfo']=='1') echo 'selected'; ?>>TAK</option><option value="0" <?php if($vals['RefStatusInfo']=='0') echo 'selected'; ?>>NIE</option></select></div>
+                <div class="form-group"><label>Roger Beep</label><select name="RogerBeep"><option value="1" <?php if($vals['RogerBeep']=='1') echo 'selected'; ?>>TAK</option><option value="0" <?php if($vals['RogerBeep']=='0') echo 'selected'; ?>>NIE</option></select></div>
+                <div class="form-group"><label>Obsługa RXMon</label><select name="RxMon"><option value="1" <?php if($rxmon_active=='1') echo 'selected'; ?>>Włącz</option><option value="0" <?php if($rxmon_active=='0') echo 'selected'; ?>>Wyłącz</option></select></div>
+            </div>
+            <button type="submit" name="save_svx_full" class="btn btn-blue">Zapisz i Restartuj</button>
+        </form>
+    </div>
+
+    <div id="WiFi" class="tab-content">
+        <h3>Zarządzanie WiFi</h3>
+        <form method="post" style="margin-bottom: 20px;">
+            <input type="hidden" name="active_tab" class="active-tab-input" value="WiFi">
+            <div class="form-grid">
+                <div>
+                    <button type="submit" name="wifi_scan" class="btn btn-blue">Skanuj Sieci</button>
+                    <button type="submit" name="wifi_list" class="btn btn-green">Moje Połączenia</button>
+                </div>
+                <div></div>
+            </div>
+        </form>
+        
+        <?php if (!empty($wifi_scan_results)): ?>
+            <h4 style="color:#aaa;">Dostępne Sieci (Kliknij, aby wybrać)</h4>
+            <div style="max-height:300px; overflow-y:auto; margin-bottom:20px; border:1px solid #444;">
+                <table class="lh-table" style="margin-top:0;">
+                    <thead><tr><th>SSID</th><th>Siła (%)</th><th>Zabezpieczenie</th></tr></thead>
+                    <tbody>
+                        <?php foreach($wifi_scan_results as $w): ?>
+                            <tr class="wifi-row" onclick="selectWifi('<?php echo htmlspecialchars($w['ssid']); ?>')">
+                                <td><b><?php echo $w['ssid']; ?></b></td><td><?php echo $w['signal']; ?>%</td><td><?php echo $w['sec']; ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+
+        <hr style="border:0; border-top:1px solid #444; margin:20px 0;">
+        
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" value="WiFi">
+            <div class="form-group"><label>SSID</label><input type="text" id="wifi-ssid" name="ssid" placeholder="Nazwa sieci WiFi"></div>
+            <div class="form-group"><label>Hasło</label><input type="password" name="pass" placeholder="Hasło WiFi"></div>
+            <div style="display:flex; gap:10px;">
+                <button type="submit" name="wifi_connect" class="btn btn-green">Połącz</button>
+                <button type="submit" name="wifi_delete" class="btn btn-red" onclick="return confirm('Usunąć?')">Zapomnij</button>
+            </div>
+        </form>
+        <div class="wifi-console"><?php echo empty($wifi_output) ? "Gotowy..." : htmlspecialchars($wifi_output); ?></div>
+    </div>
+
+    <div id="Power" class="tab-content">
+        <form method="post">
+            <input type="hidden" name="active_tab" class="active-tab-input" value="Power">
+            <button type="submit" name="restart_srv" class="btn btn-red">Restart Usługi SvxLink</button>
+        </form>
+    </div>
+
+    <div id="Logs" class="tab-content">
+        <div id="log-content" class="log-box">...</div>
+    </div>
+</div>
+
+<script>
+    function selectWifi(ssid) { document.getElementById('wifi-ssid').value = ssid; }
+
+    function openTab(evt, tabName) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; }
+        tablinks = document.getElementsByClassName("tab-btn");
+        for (i = 0; i < tablinks.length; i++) { tablinks[i].className = tablinks[i].className.replace(" active", ""); }
+        document.getElementById(tabName).style.display = "block";
+        if(evt) { evt.currentTarget.className += " active"; } 
+        else { var btn = document.getElementById("btn-" + tabName); if(btn) btn.className += " active"; }
+        var inputs = document.getElementsByClassName("active-tab-input");
+        for(var j=0; j<inputs.length; j++) { inputs[j].value = tabName; }
+    }
+
+    var startTab = "<?php echo $active_tab; ?>";
+    if (!startTab) startTab = "Dashboard";
+    openTab(null, startTab);
+
+    function loadLogsAndStatus() {
+        $.get('logs.php', function(data) {
+            $('#log-content').html(data);
+            if (data.includes("ReflectorLogic: Connection established")) { $("#ref-status").html("PODŁĄCZONY").css("color", "#4CAF50"); } 
+            else if (data.includes("ReflectorLogic: Disconnected")) { $("#ref-status").html("ROZŁĄCZONY").css("color", "#F44336"); }
+
+            let lastOn = data.lastIndexOf("Tx1: Turning the transmitter ON");
+            let lastOff = data.lastIndexOf("Tx1: Turning the transmitter OFF");
+            if (lastOn > lastOff) { $("#trx-status").html("NADAWANIE").css("color", "#F44336"); } 
+            else { $("#trx-status").html("CZUWANIE").css("color", "#4CAF50"); }
+
+            let tgRegex = /Talker start on TG #(\d+)/g;
+            let matches = [...data.matchAll(tgRegex)];
+            if (matches.length > 0) {
+                let lastTg = matches[matches.length - 1][1];
+                $("#tg-active").html(lastTg).css("color", "#FF9800");
+            }
+        });
+        $.get('last_heard.php', function(data) { $('#lh-content').html(data); });
+    }
+    setInterval(loadLogsAndStatus, 1500);
+    loadLogsAndStatus();
+</script>
+
+</body>
+</html>
