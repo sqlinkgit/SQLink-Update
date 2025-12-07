@@ -38,7 +38,9 @@ sudo cp $GIT_DIR/*.png $WWW_DIR/
 if [ -d "$GIT_DIR/sounds" ]; then
     echo "Wykryto folder dźwięków - aktualizuję komunikaty..."
     # Odkomentuj poniższą linię, gdy wrzucisz dźwięki do Gita:
-    # sudo cp -r $GIT_DIR/sounds/* /usr/share/svxlink/sounds/pl_PL/
+    sudo cp -r $GIT_DIR/sounds/* /usr/local/share/svxlink/sounds/pl_PL/
+    sudo chown -R svxlink:daemon /usr/local/share/svxlink/sounds/pl_PL/
+    sudo chmod -R 755 /usr/local/share/svxlink/sounds/pl_PL/
 fi
 
 # 5. Napraw uprawnienia
