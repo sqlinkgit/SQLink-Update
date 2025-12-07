@@ -81,6 +81,21 @@
     </div>
 </div>
 
+<div class="help-section">
+    <div class="help-title"><span class="help-icon">☁️</span> 5. Aktualizacje Systemu</div>
+    <div class="help-text">
+        Twój hotspot posiada system automatycznych aktualizacji (OTA), połączony z chmurą GitHub.
+        <div class="help-step" style="border-left-color: #4CAF50;">
+            <strong>Jak zaktualizować?</strong><br>
+            Wejdź w zakładkę <strong>⚡ Zasilanie</strong> i kliknij zielony przycisk <strong>☁️ Pobierz Aktualizację</strong>.<br>
+            System automatycznie pobierze najnowsze funkcje, poprawki wyglądu oraz (jeśli są dostępne) nowe komunikaty głosowe.
+        </div>
+        <div style="font-size:12px; color:#888; margin-top:5px;">
+            <em>Wskazówka: Jeśli po aktualizacji nie widzisz zmian, kliknij przycisk jeszcze raz (czasami system musi zaktualizować sam mechanizm pobierania).</em>
+        </div>
+    </div>
+</div>
+
 <div class="help-section" style="border:none;">
     <div class="help-title"><span class="help-icon">🔧</span> Rozwiązywanie Problemów (Q&A)</div>
     <div class="help-text">
