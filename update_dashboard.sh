@@ -1,49 +1,54 @@
 #!/bin/bash
 
 # Ustawienia
+GIT_URL="https://github.com/SQLinkgit/SQLink-Update.git"
 GIT_DIR="/root/SQLink-Update"
 WWW_DIR="/var/www/html"
 
 echo "--- START AKTUALIZACJI ---"
 date
 
-# 1. Pobierz zmiany z GitHub
-if [ -d "$GIT_DIR" ]; then
-    cd $GIT_DIR
-    # Resetuje lokalne zmiany i wymusza wersję z chmury
-    git reset --hard
-    git pull origin main
-else
-    echo "BŁĄD: Nie widzę folderu z Gitem ($GIT_DIR)."
-    exit 1
+# 1. Sprawdź czy folder istnieje (AUTO-NAPRAWA)
+if [ ! -d "$GIT_DIR" ]; then
+    echo "⚠️ Folder repozytorium nie istnieje. Pobieram go od nowa..."
+    cd /root
+    git clone $GIT_URL
+    if [ $? -ne 0 ]; then
+        echo "❌ BŁĄD KRYTYCZNY: Nie udało się sklonować repozytorium. Sprawdź internet."
+        exit 1
+    fi
 fi
 
-# 2. SAMO-AKTUALIZACJA SKRYPTU (To jest ta nowość!)
-# Sprawdzamy, czy plik w gicie różni się od tego w systemie
+# 2. Pobierz zmiany z GitHub
+echo "Pobieram najnowszą wersję..."
+cd $GIT_DIR
+git reset --hard
+git pull origin main
+
+# 3. SAMO-AKTUALIZACJA SKRYPTU
 if ! cmp -s "$GIT_DIR/update_dashboard.sh" "/usr/local/bin/update_dashboard.sh"; then
     echo "Znaleziono nową wersję skryptu aktualizacji. Instaluję..."
     sudo cp "$GIT_DIR/update_dashboard.sh" /usr/local/bin/
     sudo chmod +x /usr/local/bin/update_dashboard.sh
-    echo "Skrypt zaktualizowany. Nowe funkcje zadziałają przy następnym kliknięciu."
 fi
 
-# 3. Kopiuj pliki na stronę WWW
+# 4. Kopiuj pliki na stronę WWW
 echo "Kopiuję pliki dashboardu na stronę..."
 sudo cp $GIT_DIR/*.php $WWW_DIR/
 sudo cp $GIT_DIR/*.css $WWW_DIR/
 sudo cp $GIT_DIR/*.js $WWW_DIR/
 sudo cp $GIT_DIR/*.png $WWW_DIR/
 
-# 4. Obsługa Dźwięków (Przygotowane na przyszłość)
+# 5. Obsługa Dźwięków
 if [ -d "$GIT_DIR/sounds" ]; then
     echo "Wykryto folder dźwięków - aktualizuję komunikaty..."
-    # Odkomentuj poniższą linię, gdy wrzucisz dźwięki do Gita:
+    sudo mkdir -p /usr/local/share/svxlink/sounds/pl_PL/
     sudo cp -r $GIT_DIR/sounds/* /usr/local/share/svxlink/sounds/pl_PL/
     sudo chown -R svxlink:daemon /usr/local/share/svxlink/sounds/pl_PL/
     sudo chmod -R 755 /usr/local/share/svxlink/sounds/pl_PL/
 fi
 
-# 5. Napraw uprawnienia
+# 6. Napraw uprawnienia WWW
 sudo chown -R www-data:www-data $WWW_DIR
 sudo chmod -R 755 $WWW_DIR
 
