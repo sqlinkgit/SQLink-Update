@@ -52,18 +52,4 @@ fi
 sudo chown -R www-data:www-data $WWW_DIR
 sudo chmod -R 755 $WWW_DIR
 
-if [ ! -f /usr/local/bin/fix_svxlink_nodes.sh ]; then
-    echo "Instaluję mechanizm odświeżania logów po restarcie..."
-    
-    # Kopiujemy nowy plik do systemu
-    sudo cp "$GIT_DIR/fix_svxlink_nodes.sh" /usr/local/bin/
-    sudo chmod +x /usr/local/bin/fix_svxlink_nodes.sh
-    
-    # Dodajemy wywołanie skryptu do autostartu (rc.local), jeśli nie ma
-    if ! grep -q "fix_svxlink_nodes.sh" /etc/rc.local; then
-        sudo sed -i '/^exit 0/i \/usr\/local\/bin\/fix_svxlink_nodes.sh &' /etc/rc.local
-        echo "Dodano fix_svxlink_nodes.sh do autostartu."
-    fi
-fi
-
 echo "--- KONIEC AKTUALIZACJI ---"
