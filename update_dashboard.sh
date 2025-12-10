@@ -8,6 +8,8 @@ WWW_DIR="/var/www/html"
 echo "--- START AKTUALIZACJI ---"
 date
 
+sleep 20
+
 # 1. Sprawdź czy folder istnieje (AUTO-NAPRAWA)
 if [ ! -d "$GIT_DIR" ]; then
     echo "⚠️ Folder repozytorium nie istnieje. Pobieram go od nowa..."
