@@ -1,6 +1,5 @@
 <?php
     // 1. ODCZYT LOGÓW
-    // 2>&1 na końcu sprawia, że błędy (np. Permission denied) trafią do zmiennej $output
     $cmd = 'sudo /usr/bin/tail -n 100 /var/log/svxlink 2>&1';
     $output = shell_exec($cmd);
 
@@ -21,7 +20,7 @@
     }
 
     $lines = explode("\n", $output);
-    $lines = array_reverse($lines); // Najnowsze na górze
+    $lines = array_reverse($lines);
 
     $count = 0;
     $limit = 20; 
@@ -33,17 +32,12 @@
         if (empty($line)) continue;
 
         // 3. SZUKANIE ROZMÓW (Metoda "Luźna")
-        // Szukamy frazy kluczowej, ignorując to co jest przed nią (datę)
         if (strpos($line, 'ReflectorLogic: Talker start on TG') !== false) {
             
-            // Próbujemy wyciągnąć dane prostszym regexem
-            // Szukamy: cokolwiek -> Dwukropek -> TG #NUMER: ZNAK
+
             if (preg_match('/TG #(\d+):\s*([A-Z0-9-\/]+)/', $line, $m_call)) {
                 $tg = $m_call[1];
                 $callsign = trim($m_call[2]);
-                
-                // Wyciąganie godziny (pierwsze 15-20 znaków linii)
-                // Zakładamy, że godzina jest w formacie HH:MM:SS gdzieś na początku
                 $time_display = "---";
                 if (preg_match('/(\d{2}:\d{2}:\d{2})/', $line, $m_time)) {
                     $time_display = $m_time[1];
@@ -62,7 +56,6 @@
     }
 
     // 4. DIAGNOSTYKA BRAKU WYNIKÓW
-    // Jeśli plik czytamy, ale tabela pusta - pokażmy kawałek loga, żeby zobaczyć co jest grane
     if (!$found_any) {
         echo "<tr><td colspan='3' style='text-align:center; color:#777; padding:10px;'>
               Brak aktywności w ostatnich 100 liniach logu.<br>

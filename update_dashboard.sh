@@ -8,7 +8,7 @@ WWW_DIR="/var/www/html"
 echo "--- START AKTUALIZACJI ---"
 date
 
-sleep 20
+sleep 10
 
 # 1. Sprawdź czy folder istnieje (AUTO-NAPRAWA)
 if [ ! -d "$GIT_DIR" ]; then

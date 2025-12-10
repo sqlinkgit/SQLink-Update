@@ -146,7 +146,6 @@
     if (isset($_POST['git_update'])) {
         $out = shell_exec("sudo /usr/local/bin/update_dashboard.sh 2>&1");
         echo "<div class='alert alert-warning' style='text-align:left;'><strong>Wynik Aktualizacji:</strong><br><pre style='font-size:10px;'>$out</pre></div>";
-        // Odśwież stronę po 5 sekundach żeby załadować nowe pliki
         echo "<meta http-equiv='refresh' content='5'>";
     }
     $wifi_output = "";
@@ -169,7 +168,6 @@
     if (isset($_POST['wifi_delete'])) {
         $ssid = escapeshellarg($_POST['ssid']);
         $wifi_output = shell_exec("sudo nmcli connection delete $ssid 2>&1");
-        // Odśwież stronę po usunięciu
         echo "<div class='alert alert-warning'>Usunięto sieć: ".htmlspecialchars($_POST['ssid'])."</div><meta http-equiv='refresh' content='2'>";
     }
 ?>
