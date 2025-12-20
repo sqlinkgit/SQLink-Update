@@ -132,9 +132,11 @@
         echo "<div class='alert alert-success'>Zapisano! Restart...</div><meta http-equiv='refresh' content='3'>";
     }
     if (isset($_POST['save_radio'])) {
+        $freq = $_POST['single_freq'];
+        
         $newRadio = [
-            "rx" => $_POST['rx'],
-            "tx" => $_POST['tx'],
+            "rx" => $freq,
+            "tx" => $freq,
             "ctcss" => $_POST['ctcss'],
             "sq" => $_POST['sq'],
             "desc" => $_POST['radio_desc']
@@ -154,7 +156,8 @@
                
         $out = shell_exec($cmd);
         shell_exec('sudo /usr/bin/systemctl start svxlink');
-        echo "<div class='alert alert-success'>Radio: $out</div>";
+        
+        echo "<div class='alert alert-success'>Radio (Simplex): $out</div>";
     }
 
     // ZASILANIE

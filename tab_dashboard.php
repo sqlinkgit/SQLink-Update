@@ -3,7 +3,7 @@
 <style>
     .dash-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 15px;
         margin-bottom: 20px;
     }
@@ -41,23 +41,17 @@
         color: #fff;
     }
     @media (max-width: 600px) {
-        .dash-grid { grid-template-columns: repeat(2, 1fr); }
+        .dash-grid { grid-template-columns: repeat(1, 1fr); } /* Na telefonie jeden pod drugim */
     }
 </style>
 
 <div class="dash-grid">
     <div class="dash-tile">
         <div class="dash-icon">📡</div>
-        <div class="dash-label">Freq (RX)</div>
-        <div class="dash-value"><?php echo $radio['rx']; ?></div>
+        <div class="dash-label">Częstotliwość</div>
+        <div class="dash-value"><?php echo $radio['rx']; ?> MHz</div>
     </div>
     
-    <div class="dash-tile">
-        <div class="dash-icon">📶</div>
-        <div class="dash-label">Freq (TX)</div>
-        <div class="dash-value"><?php echo $radio['tx']; ?></div>
-    </div>
-
     <div class="dash-tile">
         <div class="dash-icon">🌍</div>
         <div class="dash-label">Host</div>

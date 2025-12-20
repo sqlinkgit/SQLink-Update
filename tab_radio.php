@@ -14,28 +14,22 @@ $CTCSS_MAP = [
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
 
     <div class="panel-box" style="border-top: 3px solid #2196F3;">
-        <h4 class="panel-title blue">⚙️ Programowanie Modułu SA818</h4>
+        <h4 class="panel-title blue">⚙️ Konfiguracja Modułu Radiowego</h4>
         <div style="font-size: 12px; color: #aaa; margin-bottom: 15px; font-style: italic;">
-            Zmiana tych ustawień przeprogramuje fizycznie moduł radiowy. <br>SvxLink zostanie na chwilę zatrzymany.
+            Wprowadź częstotliwość pracy hotspota. <br>Zatwierdzenie spowoduje chwilowy restart usługi.
         </div>
         
         <form method="post">
             <input type="hidden" name="active_tab" class="active-tab-input" value="Radio">
             
             <div class="form-group">
-                <label>Opis Sprzętu (Tylko wizualne)</label>
+                <label>Opis Sprzętu (Wizualne)</label>
                 <input type="text" name="radio_desc" value="<?php echo isset($radio['desc']) ? htmlspecialchars($radio['desc']) : ''; ?>" placeholder="np. OrangePi + SA818">
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div class="form-group">
-                    <label>RX Freq (MHz)</label>
-                    <input type="text" name="rx" value="<?php echo htmlspecialchars($radio['rx']); ?>">
-                </div>
-                <div class="form-group">
-                    <label>TX Freq (MHz)</label>
-                    <input type="text" name="tx" value="<?php echo htmlspecialchars($radio['tx']); ?>">
-                </div>
+            <div class="form-group">
+                <label>Częstotliwość Pracy (MHz)</label>
+                <input type="text" name="single_freq" value="<?php echo htmlspecialchars($radio['rx']); ?>" style="font-size: 18px; font-weight: bold; color: #4CAF50;">
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -70,17 +64,17 @@ $CTCSS_MAP = [
             <h4 class="panel-title" style="color: #FF9800; border: none;">⚠️ Ważne Informacje SA818</h4>
             <div style="font-size: 13px; color: #ddd; line-height: 1.6;">
                 <ul style="list-style: none; padding: 0; margin-top: 10px;">
-                    <li style="margin-bottom: 8px;">
-                        📶 <b>Simplex:</b><br>
-                        Dla pracy simplex ustaw <b>RX</b> i <b>TX</b> na tę samą częstotliwość.
+                    <li style="margin-bottom: 12px;">
+                        📶 <b>Częstotliwość:</b><br>
+                        Moduł pracuje w trybie Simplex. Wpisana częstotliwość jest ustawiana automatycznie zarówno dla Nadawania (TX), jak i Odbioru (RX).
                     </li>
-                    <li style="margin-bottom: 8px;">
-                        🔇 <b>Squelch:</b><br>
-                        Zalecana wartość to <b>2-4</b>. Zbyt niska (1) może otwierać blokadę od zakłóceń komputera.
+                    <li style="margin-bottom: 12px;">
+                        🔒 <b>Co to jest CTCSS?</b><br>
+                        To system "Prywatnego Kanału". Działa jak elektroniczny klucz. Jeśli go ustawisz, Twój hotspot nie będzie odbierał przypadkowych zakłóceń z eteru, a jedynie Twoje radio (które musi mieć ustawiony ten sam ton).
                     </li>
                     <li>
-                        ⚡ <b>Czas programowania:</b><br>
-                        Po kliknięciu "Zaprogramuj", usługa SvxLink zostanie zrestartowana. Przerwa w działaniu potrwa około 3-5 sekund.
+                        ⚡ <b>Uwaga:</b><br>
+                        Squelch zalecamy ustawić na poziom <b>2-4</b>. Poziom 1 może być zbyt czuły w pobliżu elektroniki komputera.
                     </li>
                 </ul>
             </div>
