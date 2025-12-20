@@ -132,10 +132,29 @@
         echo "<div class='alert alert-success'>Zapisano! Restart...</div><meta http-equiv='refresh' content='3'>";
     }
     if (isset($_POST['save_radio'])) {
-        $newRadio = ["rx"=>$_POST['rx'], "tx"=>$_POST['tx'], "ctcss"=>$_POST['ctcss'], "sq"=>$_POST['sq']]; file_put_contents($jsonFile, json_encode($newRadio)); $radio = $newRadio;
-        shell_exec('sudo /usr/bin/systemctl stop svxlink'); sleep(1);
-        $cmd = "sudo /usr/bin/python3 /usr/local/bin/setup_radio.py ".escapeshellarg($radio['rx'])." ".escapeshellarg($radio['tx'])." ".escapeshellarg($radio['ctcss'])." ".escapeshellarg($radio['sq'])." 2>&1";
-        $out = shell_exec($cmd); shell_exec('sudo /usr/bin/systemctl start svxlink'); echo "<div class='alert alert-success'>Radio: $out</div>";
+        $newRadio = [
+            "rx" => $_POST['rx'],
+            "tx" => $_POST['tx'],
+            "ctcss" => $_POST['ctcss'],
+            "sq" => $_POST['sq'],
+            "desc" => $_POST['radio_desc']
+        ];
+
+        file_put_contents($jsonFile, json_encode($newRadio));
+        $radio = $newRadio;
+
+        shell_exec('sudo /usr/bin/systemctl stop svxlink');
+        sleep(1);
+        
+        $cmd = "sudo /usr/bin/python3 /usr/local/bin/setup_radio.py " . 
+               escapeshellarg($radio['rx']) . " " . 
+               escapeshellarg($radio['tx']) . " " . 
+               escapeshellarg($radio['ctcss']) . " " . 
+               escapeshellarg($radio['sq']) . " 2>&1";
+               
+        $out = shell_exec($cmd);
+        shell_exec('sudo /usr/bin/systemctl start svxlink');
+        echo "<div class='alert alert-success'>Radio: $out</div>";
     }
 
     // ZASILANIE
@@ -258,27 +277,7 @@
     </div>
 
     <div id="Radio" class="tab-content">
-        <h3>Ustawienia Radia</h3>
-        <form method="post">
-            <input type="hidden" name="active_tab" class="active-tab-input" value="Radio">
-            <div class="form-grid">
-                <div class="form-group"><label>RX Freq</label><input type="text" name="rx" value="<?php echo $radio['rx']; ?>"></div>
-                <div class="form-group"><label>TX Freq</label><input type="text" name="tx" value="<?php echo $radio['tx']; ?>"></div>
-                <div class="form-group">
-                    <label>CTCSS (Ton blokady)</label>
-                    <select name="ctcss">
-                        <?php
-                            foreach($CTCSS_MAP as $code => $label) {
-                                $sel = ($radio['ctcss'] == $code) ? 'selected' : '';
-                                echo "<option value='$code' $sel>$label ($code)</option>";
-                            }
-                        ?>
-                    </select>
-                </div>
-                <div class="form-group"><label>Squelch</label><select name="sq"><?php foreach([1,2,3,4,6,8] as $s) echo "<option value='$s' ".($radio['sq']==$s?'selected':'').">$s</option>"; ?></select></div>
-            </div>
-            <button type="submit" name="save_radio" class="btn btn-green">Programuj Radio</button>
-        </form>
+        <?php include 'tab_radio.php'; ?>
     </div>
 
     <div id="SvxConfig" class="tab-content">
