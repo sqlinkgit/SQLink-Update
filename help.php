@@ -25,8 +25,23 @@
     </div>
 </div>
 
+<div class="help-section" style="border-left: 5px solid #FF9800;">
+    <div class="help-title"><span class="help-icon">🆘</span> 2. Tryb Ratunkowy WiFi</div>
+    <div class="help-text">
+        Jeśli Orange Pi zgubi sieć, automatycznie utworzy własny Hotspot.
+        <br><br>
+        <div style="border: 3px solid #FF9800; padding: 15px; border-radius: 8px;">
+            <strong>🚨 Jak odzyskać łączność?</strong><br><br>
+            1. Poczekaj około <strong>2 minuty</strong> po uruchomieniu.<br>
+            2. Szukaj sieci WiFi: <span style="color:#FF9800; font-size:1.1em; font-weight:bold;">SQLink_WiFi_AP</span><br>
+            🔐 <strong>Hasło:</strong> <code>sqlink123</code><br>
+            🌐 <strong>Adres:</strong> <a href="http://192.168.4.1" target="_blank" style="color:#FF9800; font-weight:bold;">192.168.4.1</a>
+        </div>
+    </div>
+</div>
+
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">🔄</span> 2. Tryby Pracy: Reflector vs EchoLink</div>
+    <div class="help-title"><span class="help-icon">🔄</span> 3. Tryby Pracy: Reflector vs EchoLink</div>
     <div class="help-text">
         Hotspot obsługuje dwa główne systemy, które <strong>nie mogą działać jednocześnie</strong>.
         
@@ -53,7 +68,7 @@
 </div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">📱</span> 3. Zakładka DTMF (Pilot)</div>
+    <div class="help-title"><span class="help-icon">📱</span> 4. Zakładka DTMF (Pilot)</div>
     <div class="help-text">
         Tutaj sterujesz hotspotem bez dotykania mikrofonu radia.
         <ul>
@@ -65,7 +80,7 @@
 </div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">🎚️</span> 4. Audio i WiFi</div>
+    <div class="help-title"><span class="help-icon">🎚️</span> 5. Audio i WiFi</div>
     <div class="help-text">
         <div class="help-warn">
             ⚠️ <strong>Ostrożnie z suwakami Audio!</strong> Zła konfiguracja może sprawić, że przestaniesz być słyszany.
@@ -79,7 +94,7 @@
 </div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">☁️</span> 5. Aktualizacje Systemu</div>
+    <div class="help-title"><span class="help-icon">☁️</span> 6. Aktualizacje Systemu</div>
     <div class="help-text">
         Twój hotspot posiada system automatycznych aktualizacji (OTA).
         <div class="help-step" style="border-left-color: #4CAF50;">
