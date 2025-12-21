@@ -125,10 +125,12 @@ function loadLogsAndStatus() {
             $(".live-callsign").text(currentCallsign);
             if(currentTG) $(".live-tg").text("TG " + currentTG).css("color", "#FF9800");
 
-            if (statusText.includes("RX") || statusText.includes("ODBIERANIE")) {
+            if (statusText.includes("RX")) {
+                // ZIELONY - Ty mówisz
                 $(".live-box").addClass("rx-active");
                 $(".live-status, .live-callsign").css("color", "#4CAF50");
             } else {
+                // POMARAŃCZOWY - Internet mówi
                 $(".live-box").addClass("tx-active");
                 $(".live-status, .live-callsign").css("color", "#FF9800");
             }
