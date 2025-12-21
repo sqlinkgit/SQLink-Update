@@ -1,7 +1,10 @@
 $.ajaxSetup({ cache: false });
 
 function selectWifi(ssid) { document.getElementById('wifi-ssid').value = ssid; }
-var dtmfBuffer = ""; var display = document.getElementById("dtmf-screen");
+
+var dtmfBuffer = ""; 
+var display = document.getElementById("dtmf-screen");
+
 function typeKey(key) { dtmfBuffer += key; display.innerHTML = dtmfBuffer; }
 function clearKey() { dtmfBuffer = ""; display.innerHTML = "..."; }
 function submitKey() { if(dtmfBuffer.length > 0) { sendAjax(dtmfBuffer); clearKey(); } }
@@ -37,6 +40,12 @@ function openTab(evt, tabName) {
 document.addEventListener("DOMContentLoaded", function() {
     var storedTab = localStorage.getItem('activeTab');
     if (storedTab) { openTab(null, storedTab); } else { openTab(null, 'Dashboard'); }
+    
+    if ($(".alert").length > 0) {
+        setTimeout(function() {
+            $(".alert").slideUp(500, function(){ $(this).remove(); });
+        }, 5000);
+    }
 });
 
 function updateStats() {
@@ -65,13 +74,13 @@ function loadLogsAndStatus() {
         let lastBad = Math.max(lastDisconnect, lastAuthFail);
 
         if (lastConnect > lastBad) {
-                $("#main-status-text").text("ONLINE (Reflector)").removeClass("inactive").addClass("active");
-                $("#main-status-dot").removeClass("red").addClass("green").addClass("blink");
-                $("#ref-status").html("PODŁĄCZONY").css("color", "#4CAF50");
+            $("#main-status-text").text("ONLINE (Reflector)").removeClass("inactive").addClass("active");
+            $("#main-status-dot").removeClass("red").addClass("green").addClass("blink");
+            $("#ref-status").html("PODŁĄCZONY").css("color", "#4CAF50");
         } else {
-                $("#main-status-text").text("OFFLINE (Reflector)").removeClass("active").addClass("inactive");
-                $("#main-status-dot").removeClass("green").addClass("red").removeClass("blink");
-                $("#ref-status").html("ROZŁĄCZONY").css("color", "#F44336");
+            $("#main-status-text").text("OFFLINE (Reflector)").removeClass("active").addClass("inactive");
+            $("#main-status-dot").removeClass("green").addClass("red").removeClass("blink");
+            $("#ref-status").html("ROZŁĄCZONY").css("color", "#F44336");
         }
 
         let lastOn = data.lastIndexOf("EchoLink directory status changed to ON");
@@ -83,22 +92,22 @@ function loadLogsAndStatus() {
         let currentCallsign = "---";
         let currentTG = "";
         let statusText = "STAN: CZUWANIE (Standby)";
-        
+
         let lastStartPos = -1; let lastStopPos = -1;
         let talkerRegex = /Talker start on TG #(\d+): ([A-Z0-9-\/]+)/g;
         let match; while ((match = talkerRegex.exec(data)) !== null) { lastStartPos = match.index; currentTG = match[1]; currentCallsign = match[2]; }
         let stopRegex = /Talker stop on TG/g; while ((match = stopRegex.exec(data)) !== null) { lastStopPos = match.index; }
-        
+
         if (lastStartPos > lastStopPos && lastStartPos !== -1) {
             isTalking = true;
-            statusText = "NADAWANIE (TX)...";
+            statusText = "NADAWANIE (TX)..."; 
         }
 
         let lastTxOn = data.lastIndexOf("Tx1: Turning the transmitter ON");
         let lastTxOff = data.lastIndexOf("Tx1: Turning the transmitter OFF");
         if (lastTxOn > lastTxOff && lastTxOn !== -1) {
             isTalking = true;
-            statusText = "NADAWANIE (TX)...";
+            statusText = "NADAWANIE (TX)..."; 
         }
 
         let lastSqOpen = data.lastIndexOf("Rx1: The squelch is OPEN");
@@ -116,7 +125,7 @@ function loadLogsAndStatus() {
             $(".live-callsign").text(currentCallsign);
             if(currentTG) $(".live-tg").text("TG " + currentTG).css("color", "#FF9800");
 
-            if (statusText.includes("RX")) {
+            if (statusText.includes("RX") || statusText.includes("ODBIERANIE")) {
                 $(".live-box").addClass("rx-active");
                 $(".live-status, .live-callsign").css("color", "#4CAF50");
             } else {
@@ -129,12 +138,12 @@ function loadLogsAndStatus() {
             $(".live-tg").text("");
         }
     });
+
     $.get('last_heard.php?t=' + Date.now(), function(data) { $('#lh-content').html(data); });
 
     $.getJSON('nodes.php?t=' + Date.now(), function(nodes) {
-        let html = ""; 
-        let myCall = GLOBAL_CALLSIGN; 
-        
+        let html = "";
+        let myCall = GLOBAL_CALLSIGN;
         let sortedKeys = Object.keys(nodes).sort();
         if(nodes[myCall]) { sortedKeys = sortedKeys.filter(n => n !== myCall); sortedKeys.unshift(myCall); }
         if (sortedKeys.length === 0) { html = "<div style='color:#777; grid-column:1/-1; text-align:center;'>Brak danych...</div>"; }
