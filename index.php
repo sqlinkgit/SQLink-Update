@@ -308,6 +308,7 @@
 
 <div class="main-footer">
     SvxLink v1.9.99.36@master Copyright (C) 2003-2025 Tobias Blomberg / <span class="callsign-blue">SM0SVX</span><br>
+    <span class="callsign-blue">SQLink System</span> • <span style="color: #ffffff;">SierraEcho & Team Edition</span><br>
     Website design by <span class="callsign-blue">SQ7UTP</span>
 </div>
 

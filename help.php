@@ -1,22 +1,26 @@
-<h3>🎓 Centrum Pomocy i Diagnostyki</h3>
+<h3>🎓 Centrum Dowodzenia i Pomocy (SQLink Orange Pi Edition)</h3>
+<div style="text-align: center; margin-bottom: 20px; font-size: 0.9em; color: #888; background: #222; padding: 5px; border-radius: 4px; border: 1px solid #444;">
+    ℹ️ System zaprojektowany dla: <strong style="color: #FF9800;">Orange Pi Zero</strong> + Karta <strong style="color: #2196F3;">CM108 USB</strong>
+</div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">🖥️</span> 1. Dashboard - Co tu widzę?</div>
+    <div class="help-title"><span class="help-icon">🖥️</span> 1. Twój Kokpit (Dashboard)</div>
     <div class="help-text">
-        Ekran główny (Dashboard) to Twój monitor stanu pracy hotspota.
+        To tutaj sprawdzasz puls swojego urządzenia. Wszystko powinno świecić na zielono!
         <ul>
-            <li><strong>🚦 Pasek Statusu:</strong> (Pod nagłówkiem) Informuje, czy usługa SVXLink działa poprawnie.</li>
-            <li><strong>📊 Telemetria:</strong> Zużycie procesora, pamięci i temperatura.
-                <br><small>⚠️ Jeśli temperatura jest czerwona (>70°C), zapewnij malinie lepsze chłodzenie.</small>
+            <li><strong>🚦 Pasek Statusu:</strong> To ten kolorowy pasek na samej górze. Jeśli jest <span style="color:#4CAF50; font-weight:bold;">ZIELONY</span>, system działa. Jeśli <span style="color:#F44336; font-weight:bold;">CZERWONY</span>, coś się popsuło (zrób restart w zakładce Zasilanie).</li>
+            
+            <li><strong>🌡️ Temperatura:</strong> Orange Pi Zero lubi być ciepłe, ale bez przesady.
+                <br><small>✅ 35°C - 60°C: Jest OK.<br>🔥 > 75°C: Za gorąco! Zapewnij mu trochę powietrza.</small>
             </li>
-            <li><strong>📺 Live Monitor (Duży kafel):</strong> To serce systemu.
+            
+            <li><strong>📺 Wielki Monitor (Live):</strong> Tu widzisz, co się dzieje w eterze:
                 <ul>
-                    <li>⚪ <strong>Stan: CZUWANIE:</strong> Nikt nie rozmawia. Cisza w eterze.</li>
-                    <li>🟢 <span style="color:#4CAF50; font-weight:bold;">ODBIERANIE (RX):</span> Ktoś nadaje z sieci (słyszysz to w swoim radiu).</li>
-                    <li>🟠 <span style="color:#FF9800; font-weight:bold;">NADAWANIE (TX):</span> Ty nadajesz do radia (Twój głos leci w świat).</li>
+                    <li>⚪ <strong>Cisza (Standby):</strong> Nikt nie gada, nuda.</li>
+                    <li>🟢 <span style="color:#4CAF50; font-weight:bold;">ODBIERANIE (RX):</span> Ty mówisz do radia (Hotspot Cię słyszy).</li>
+                    <li>🟠 <span style="color:#FF9800; font-weight:bold;">NADAWANIE (TX):</span> Ktoś mówi z internetu (Słyszysz to w radiu).</li>
                 </ul>
             </li>
-            <li><strong>📝 Last Heard:</strong> Historia ostatnich 20 stacji, które były aktywne w sieci.</li>
         </ul>
     </div>
 </div>
@@ -54,29 +58,22 @@
         Tutaj sterujesz hotspotem bez dotykania mikrofonu radia.
         <ul>
             <li><strong>👥 Grupy Rozmowne:</strong> Kliknięcie kafelka (np. TG 260) natychmiast przełącza Cię na tę grupę.</li>
-            <li><strong>🦜 Papuga (Test Audio):</strong> Narzędzie do sprawdzania, jak Cię słychać.
-                <ol style="margin-top:5px; font-size:12px;">
-                    <li>Kliknij <strong>▶️ Włącz Papugę</strong>.</li>
-                    <li>Powiedz coś do radia (zrób tzw. "test modulacji").</li>
-                    <li>Hotspot odegra Twój głos. Jeśli jest cicho/zniekształcony -> zajrzyj do zakładki Audio.</li>
-                    <li>Kliknij <strong>⏹️ Wyłącz</strong> po zakończeniu.</li>
-                </ol>
-            </li>
+            <li><strong>🦜 Papuga (Test Audio):</strong> Narzędzie do sprawdzania, jak Cię słychać.</li>
             <li><strong>⌨️ Klawiatura:</strong> Pozwala wpisać dowolny kod DTMF (np. ukryte funkcje SVXLink).</li>
         </ul>
     </div>
 </div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">🎚️</span> 4. Audio, Radio i WiFi</div>
+    <div class="help-title"><span class="help-icon">🎚️</span> 4. Audio i WiFi</div>
     <div class="help-text">
         <div class="help-warn">
             ⚠️ <strong>Ostrożnie z suwakami Audio!</strong> Zła konfiguracja może sprawić, że przestaniesz być słyszany.
         </div>
         <ul>
-            <li><strong>🎙️ Suwak MIC Boost / ADC Gain:</strong> Reguluje głośność Twojego głosu w sieci. Jeśli koledzy mówią, że "przesterowujesz" lub "charczysz" - zmniejsz to.</li>
+            <li><strong>🎙️ Suwak MIC Boost / ADC Gain:</strong> Reguluje głośność Twojego głosu w sieci.</li>
             <li><strong>🔊 Suwak TX Volume:</strong> Reguluje jak głośno słyszysz rozmówców w swoim radiu.</li>
-            <li><strong>📶 WiFi:</strong> Możesz tu dodać nową sieć (np. z telefonu) lub usunąć stare, nieużywane sieci, aby hotspot łączył się szybciej.</li>
+            <li><strong>📶 WiFi:</strong> Możesz tu dodać nową sieć (np. z telefonu) lub usunąć stare, nieużywane sieci.</li>
         </ul>
     </div>
 </div>
@@ -84,31 +81,28 @@
 <div class="help-section">
     <div class="help-title"><span class="help-icon">☁️</span> 5. Aktualizacje Systemu</div>
     <div class="help-text">
-        Twój hotspot posiada system automatycznych aktualizacji (OTA), połączony z chmurą GitHub.
+        Twój hotspot posiada system automatycznych aktualizacji (OTA).
         <div class="help-step" style="border-left-color: #4CAF50;">
             <strong>Jak zaktualizować?</strong><br>
             Wejdź w zakładkę <strong>⚡ Zasilanie</strong> i kliknij zielony przycisk <strong>☁️ Pobierz Aktualizację</strong>.<br>
-            System automatycznie pobierze najnowsze funkcje, poprawki wyglądu oraz (jeśli są dostępne) nowe komunikaty głosowe.
-        </div>
-        <div style="font-size:12px; color:#888; margin-top:5px;">
-            <em>Wskazówka: Jeśli po aktualizacji nie widzisz zmian, kliknij przycisk jeszcze raz (czasami system musi zaktualizować sam mechanizm pobierania).</em>
+            System automatycznie pobierze najnowsze funkcje.
         </div>
     </div>
 </div>
 
 <div class="help-section" style="border:none;">
-    <div class="help-title"><span class="help-icon">🔧</span> Rozwiązywanie Problemów (Q&A)</div>
+    <div class="help-title"><span class="help-icon">🔧</span> Szybka Pomoc (Q&A)</div>
     <div class="help-text">
-        <strong>Q: Nie mogę połączyć się z EchoLinkiem (Status: Disconnected).</strong><br>
-        A: Jeśli używasz internetu mobilnego (GSM), operatorzy często blokują porty. Wejdź w zakładkę <strong>Config</strong> i kliknij zielony przycisk <strong>♻️ Znajdź i ustaw Auto-Proxy</strong>. System sam znajdzie obejście.<br><br>
+        <strong>❓ Nie mogę połączyć się z EchoLinkiem (Status: Disconnected).</strong><br>
+        ✅ Jeśli używasz internetu mobilnego (GSM), operatorzy często blokują porty. Wejdź w zakładkę <strong>Config</strong> i kliknij zielony przycisk <strong>♻️ Znajdź i ustaw Auto-Proxy</strong>.<br><br>
         
-        <strong>Q: Hotspot przestał gadać / Dashboard "wisi".</strong><br>
-        A: Wejdź w zakładkę <strong>⚡ Zasilanie</strong> i kliknij niebieski przycisk <strong>Restart Usługi SvxLink</strong>. To "miękki restart" samego oprogramowania, trwa ok. 5-10 sekund.<br><br>
+        <strong>❓ Hotspot przestał gadać / Dashboard "wisi".</strong><br>
+        ✅ Wejdź w zakładkę <strong>⚡ Zasilanie</strong> i kliknij niebieski przycisk <strong>Restart Usługi SvxLink</strong>.<br><br>
 
-        <strong>Q: Słyszę komunikaty, ale nikt mnie nie słyszy.</strong><br>
-        A: Sprawdź częstotliwość radia i ton CTCSS w zakładce <strong>📻 Radio</strong>. Upewnij się, że Twoje radio ręczne ma ustawiony taki sam ton nadawania.<br><br>
+        <strong>❓ Słyszę komunikaty, ale nikt mnie nie słyszy.</strong><br>
+        ✅ Sprawdź częstotliwość radia i ton CTCSS w zakładce <strong>📻 Radio</strong>.<br><br>
 
-        <strong>Q: W logach widzę "Distortion detected".</strong><br>
-        A: Twoje radio nadaje zbyt głośno do hotspota (przester). Zcisz radio (jeśli podłączone kablem) lub zmniejsz <em>ADC Gain</em> w zakładce Audio.
+        <strong>❓ W logach widzę "Distortion detected".</strong><br>
+        ✅ Twoje radio nadaje zbyt głośno do hotspota (przester). Zcisz radio (jeśli podłączone kablem) lub zmniejsz <em>ADC Gain</em> w zakładce Audio.
     </div>
 </div>

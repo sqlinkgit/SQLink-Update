@@ -1,4 +1,3 @@
-// AJAX SETUP
 $.ajaxSetup({ cache: false });
 
 function selectWifi(ssid) { document.getElementById('wifi-ssid').value = ssid; }
@@ -32,19 +31,12 @@ function openTab(evt, tabName) {
     if(evt) { evt.currentTarget.className += " active"; } else { var btn = document.getElementById("btn-" + tabName); if(btn) btn.className += " active"; }
     var inputs = document.getElementsByClassName("active-tab-input");
     for(var j=0; j<inputs.length; j++) { inputs[j].value = tabName; }
-
-    // ZAPISZ DO LOCALSTORAGE
     localStorage.setItem('activeTab', tabName);
 }
 
-// ODCZYTAJ Z LOCALSTORAGE LUB UŻYJ DOMYŚLNEJ (Z PHP LUB DASHBOARD)
 document.addEventListener("DOMContentLoaded", function() {
     var storedTab = localStorage.getItem('activeTab');
-    if (storedTab) {
-        openTab(null, storedTab);
-    } else {
-        openTab(null, 'Dashboard');
-    }
+    if (storedTab) { openTab(null, storedTab); } else { openTab(null, 'Dashboard'); }
 });
 
 function updateStats() {
@@ -53,8 +45,6 @@ function updateStats() {
         $("#t-ram").text(stats.ram_percent + "%"); $("#t-ram-bar").css("width", stats.ram_percent + "%").attr("class", "progress-fill " + (stats.ram_percent>90?'p-red':(stats.ram_percent>70?'p-orange':'')));
         $("#t-disk").text(stats.disk_percent + "%"); $("#t-disk-bar").css("width", stats.disk_percent + "%").attr("class", "progress-fill " + (stats.disk_percent>90?'p-red':''));
         $("#t-hw").text(stats.hw.substring(0, 25) + (stats.hw.length>25?"...":""));
-
-        // NETWORK UPDATE
         $("#t-net-type").text(stats.net_type + (stats.net_type == "WiFi" ? " (" + stats.ssid + ")" : ""));
         $("#t-ip").text(stats.ip);
         $("#wifi-tab-status").text(stats.net_type + (stats.net_type == "WiFi" ? ": " + stats.ssid : ""));
@@ -65,12 +55,10 @@ function updateStats() {
 function loadLogsAndStatus() {
     $.get('logs.php?t=' + Date.now(), function(data) {
         
-        // ODWRACANIE LOGÓW: Najnowsze na górze
         var logLines = data.trim().split('\n');
         var reversedData = logLines.reverse().join('\n');
         $('#log-content').html(reversedData);
 
-        // 1. STATUS REFLEKTORA
         let lastConnect = data.lastIndexOf("ReflectorLogic: Connection established");
         let lastDisconnect = data.lastIndexOf("ReflectorLogic: Disconnected");
         let lastAuthFail = data.lastIndexOf("ReflectorLogic: Authentication failed");
@@ -86,19 +74,16 @@ function loadLogsAndStatus() {
                 $("#ref-status").html("ROZŁĄCZONY").css("color", "#F44336");
         }
 
-        // 2. STATUS ECHOLINK
         let lastOn = data.lastIndexOf("EchoLink directory status changed to ON");
         let lastOff = Math.max(data.lastIndexOf("EchoLink directory status changed to ?"), data.lastIndexOf("Disconnected from EchoLink proxy"));
         if (lastOn > lastOff) { $("#el-live-status").text("CONNECTED").removeClass("el-disconnected").addClass("el-connected"); }
         else { $("#el-live-status").text("DISCONNECTED - Sprawdź Config!").removeClass("el-connected").addClass("el-disconnected"); }
 
-        // 3. DETEKCJA ROZMOWY - POPRAWIONA LOGIKA
         let isTalking = false;
         let currentCallsign = "---";
         let currentTG = "";
         let statusText = "STAN: CZUWANIE (Standby)";
         
-        // A. Detekcja nadawania z sieci (Reflector)
         let lastStartPos = -1; let lastStopPos = -1;
         let talkerRegex = /Talker start on TG #(\d+): ([A-Z0-9-\/]+)/g;
         let match; while ((match = talkerRegex.exec(data)) !== null) { lastStartPos = match.index; currentTG = match[1]; currentCallsign = match[2]; }
@@ -106,43 +91,48 @@ function loadLogsAndStatus() {
         
         if (lastStartPos > lastStopPos && lastStartPos !== -1) {
             isTalking = true;
-            statusText = "ODBIERANIE (RX)...";
+            statusText = "NADAWANIE (TX)...";
         }
 
-        // B. Detekcja lokalnego nadawania (Hotspot TX)
         let lastTxOn = data.lastIndexOf("Tx1: Turning the transmitter ON");
         let lastTxOff = data.lastIndexOf("Tx1: Turning the transmitter OFF");
         if (lastTxOn > lastTxOff && lastTxOn !== -1) {
             isTalking = true;
-            if(statusText === "STAN: CZUWANIE (Standby)") statusText = "NADAWANIE (TX)...";
+            statusText = "NADAWANIE (TX)...";
         }
 
-        // C. Detekcja odbioru od użytkownika (Squelch Open)
         let lastSqOpen = data.lastIndexOf("Rx1: The squelch is OPEN");
         let lastSqClose = data.lastIndexOf("Rx1: The squelch is CLOSED");
         if (lastSqOpen > lastSqClose && lastSqOpen !== -1) {
             isTalking = true;
             statusText = "ODBIERANIE (RX - LOCAL)...";
-            currentCallsign = "LOKALNIE"; // Można zmienić na Twój znak jeśli wolisz
+            currentCallsign = "LOKALNIE"; 
         }
 
+        $(".live-box").removeClass("talking rx-active tx-active");
+
         if (isTalking) {
-            $(".live-status").text(statusText).css("color", "#4CAF50");
-            $(".live-callsign").text(currentCallsign).css("color", "#4CAF50");
+            $(".live-status").text(statusText);
+            $(".live-callsign").text(currentCallsign);
             if(currentTG) $(".live-tg").text("TG " + currentTG).css("color", "#FF9800");
-            $(".live-box").addClass("talking");
+
+            if (statusText.includes("RX")) {
+                $(".live-box").addClass("rx-active");
+                $(".live-status, .live-callsign").css("color", "#4CAF50");
+            } else {
+                $(".live-box").addClass("tx-active");
+                $(".live-status, .live-callsign").css("color", "#FF9800");
+            }
         } else {
             $(".live-status").text("STAN: CZUWANIE (Standby)").css("color", "#666");
             $(".live-callsign").text("---").css("color", "#fff");
             $(".live-tg").text("");
-            $(".live-box").removeClass("talking");
         }
     });
     $.get('last_heard.php?t=' + Date.now(), function(data) { $('#lh-content').html(data); });
 
     $.getJSON('nodes.php?t=' + Date.now(), function(nodes) {
         let html = ""; 
-        // UŻYWAMY ZMIENNEJ GLOBALNEJ Z INDEX.PHP
         let myCall = GLOBAL_CALLSIGN; 
         
         let sortedKeys = Object.keys(nodes).sort();
