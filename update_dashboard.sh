@@ -70,15 +70,24 @@ if [ ! -f "$NM_CONF" ]; then
 fi
 
 SERVICE_NAME="ping-keepalive.service"
-SRC_SERVICE="$GIT_DIR/$SERVICE_NAME"
 DEST_SERVICE="/etc/systemd/system/$SERVICE_NAME"
+PING_PATH=$(which ping)
 
-if [ -f "$SRC_SERVICE" ]; then
-    sudo cp "$SRC_SERVICE" "$DEST_SERVICE"
-    REAL_PING_PATH=$(which ping)
-    if [ ! -z "$REAL_PING_PATH" ]; then
-        sudo sed -i "s|ExecStart=.*|ExecStart=$REAL_PING_PATH -i 15 8.8.8.8|g" "$DEST_SERVICE"
-    fi
+if [ ! -z "$PING_PATH" ]; then
+cat <<EOF > "$DEST_SERVICE"
+[Unit]
+Description=Ping Keepalive
+After=network.target
+
+[Service]
+ExecStart=$PING_PATH -i 15 8.8.8.8
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
     sudo systemctl daemon-reload
     sudo systemctl enable ping-keepalive
     sudo systemctl restart ping-keepalive
