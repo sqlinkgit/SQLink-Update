@@ -1,57 +1,62 @@
 <?php
 header('Content-Type: application/json');
 
-// 1. Pobieramy Twój Znak z pliku konfiguracyjnego
 $my_call = "MY-HOTSPOT";
-$conf = file_get_contents('/etc/svxlink/svxlink.conf');
-if (preg_match('/CALLSIGN=(.*)/', $conf, $m)) {
+$conf = @file_get_contents('/etc/svxlink/svxlink.conf');
+if ($conf && preg_match('/CALLSIGN=(.*)/', $conf, $m)) {
     $my_call = trim($m[1]);
 }
 
-// 2. Czytamy logi
-$cmd = 'sudo /usr/bin/tail -n 200 /var/log/svxlink';
-$output = shell_exec($cmd);
-$lines = explode("\n", $output);
-
-$current_tg = 0;
-$connected_list = [$my_call];
-
-foreach ($lines as $line) {
-    // A. Szukamy TG
-    if (preg_match('/Selecting TG #(\d+)/', $line, $match)) {
-        $current_tg = (int)$match[1];
-    }
-
-    // B. Szukamy listy podłączonych stacji
-    if (strpos($line, 'ReflectorLogic: Connected nodes:') !== false) {
-        if (preg_match('/Connected nodes: (.*)/', $line, $m)) {
-            $raw_list = explode(',', $m[1]);
-            $connected_list = array_map('trim', $raw_list);
-        }
-    }
-}
-
-// 3. Budujemy finalną tablicę węzłów
 $nodes = [];
+$nodes[$my_call] = ['active' => true, 'tg' => ''];
 
-if (empty($connected_list)) {
-    $connected_list = [$my_call];
-}
+$logFile = '/var/www/html/svx_events.log';
 
-foreach ($connected_list as $callsign) {
-    $nodes[$callsign] = [
-        'active' => true,
-        'tg' => ''
-    ];
+if (file_exists($logFile)) {
+    $lines = file($logFile);
+    foreach ($lines as $line) {
+        $line = trim($line);
 
-    // Jeśli to TY, dodajemy informację o Twoim TG
-    if ($callsign === $my_call) {
-        if ($current_tg > 0) {
-            $nodes[$callsign]['tg'] = $current_tg;
+        if (preg_match('/ReflectorLogic: Node ([A-Z0-9-\/]+) joined/', $line, $matches)) {
+            $call = $matches[1];
+            if ($call !== $my_call) {
+                $nodes[$call] = ['active' => true, 'tg' => ''];
+            }
+        }
+
+        if (preg_match('/ReflectorLogic: Node ([A-Z0-9-\/]+) left/', $line, $matches)) {
+            $call = $matches[1];
+            if (isset($nodes[$call])) {
+                unset($nodes[$call]);
+            }
+        }
+
+        if (strpos($line, 'Connected nodes:') !== false && preg_match('/Connected nodes: (.*)/', $line, $matches)) {
+            $raw_list = explode(',', $matches[1]);
+            foreach($raw_list as $n) {
+                $n = trim($n);
+                if (!empty($n) && $n !== $my_call) {
+                    $nodes[$n] = ['active' => true, 'tg' => ''];
+                }
+            }
+        }
+
+        if (preg_match('/Talker start on TG #(\d+): ([A-Z0-9-\/]+)/', $line, $matches)) {
+            $tg = $matches[1];
+            $call = $matches[2];
+            
+            if (!isset($nodes[$call])) {
+                $nodes[$call] = ['active' => true, 'tg' => $tg];
+            } else {
+                $nodes[$call]['tg'] = $tg;
+            }
+        }
+
+        if (preg_match('/ReflectorLogic: Selecting TG #(\d+)/', $line, $matches)) {
+            $nodes[$my_call]['tg'] = $matches[1];
         }
     }
 }
 
-// 4. Zwracamy JSON
 echo json_encode($nodes);
 ?>

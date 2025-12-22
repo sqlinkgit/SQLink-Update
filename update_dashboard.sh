@@ -5,60 +5,94 @@ GIT_URL="https://github.com/SQLinkgit/SQLink-Update.git"
 GIT_DIR="/root/SQLink-Update"
 WWW_DIR="/var/www/html"
 
-echo "--- START AKTUALIZACJI ---"
+echo "--- START AKTUALIZACJI (Orange Pi) ---"
 date
 
-sleep 10
+sleep 5
 
-# 1. Sprawdź czy folder istnieje (AUTO-NAPRAWA)
+# 1. Sprawdź czy folder istnieje
 if [ ! -d "$GIT_DIR" ]; then
     echo "⚠️ Folder repozytorium nie istnieje. Pobieram go od nowa..."
     cd /root
     git clone $GIT_URL
     if [ $? -ne 0 ]; then
-        echo "❌ BŁĄD KRYTYCZNY: Nie udało się sklonować repozytorium. Sprawdź internet."
+        echo "❌ BŁĄD KRYTYCZNY: Nie udało się sklonować repozytorium."
         exit 1
     fi
 fi
 
-# 2. Pobierz zmiany z GitHub
+# 2. Pobierz zmiany
 echo "Pobieram najnowszą wersję..."
 cd $GIT_DIR
 git reset --hard
 git pull origin main
 
-# 3. SAMO-AKTUALIZACJA SKRYPTU
-if ! cmp -s "$GIT_DIR/update_dashboard.sh" "/usr/local/bin/update_dashboard.sh"; then
-    echo "Znaleziono nową wersję skryptu aktualizacji. Instaluję..."
-    sudo cp "$GIT_DIR/update_dashboard.sh" /usr/local/bin/
-    sudo chmod +x /usr/local/bin/update_dashboard.sh
+# 3. Instaluj Python tools (WAŻNE dla Smart Configa)
+if compgen -G "$GIT_DIR/*.py" > /dev/null; then
+    sudo cp $GIT_DIR/*.py /usr/local/bin/
+    sudo chmod +x /usr/local/bin/*.py
 fi
 
-# 4. Kopiuj pliki na stronę WWW
-echo "Kopiuję pliki dashboardu na stronę..."
+# 4. Instaluj nowe skrypty (Logger, Cleaner)
+for script in $GIT_DIR/*.sh; do
+    filename=$(basename "$script")
+    # Nie nadpisuj samego siebie w trakcie pętli
+    if [ "$filename" != "update_dashboard.sh" ]; then
+        sudo cp "$script" /usr/local/bin/
+        sudo chmod +x "/usr/local/bin/$filename"
+    fi
+done
+
+# 5. Kopiuj pliki WWW
+echo "Kopiuję pliki dashboardu..."
 sudo cp $GIT_DIR/*.php $WWW_DIR/
 sudo cp $GIT_DIR/*.css $WWW_DIR/
 sudo cp $GIT_DIR/*.js $WWW_DIR/
 sudo cp $GIT_DIR/*.png $WWW_DIR/
 
-# 5. Obsługa Dźwięków
+# 6. Dźwięki
 if [ -d "$GIT_DIR/sounds" ]; then
-    echo "Wykryto folder dźwięków - aktualizuję komunikaty..."
     sudo mkdir -p /usr/local/share/svxlink/sounds/pl_PL/
     sudo cp -r $GIT_DIR/sounds/* /usr/local/share/svxlink/sounds/pl_PL/
     sudo chown -R svxlink:daemon /usr/local/share/svxlink/sounds/pl_PL/
     sudo chmod -R 755 /usr/local/share/svxlink/sounds/pl_PL/
 fi
 
-# 6. Napraw uprawnienia WWW
+# 7. Uprawnienia WWW
 sudo chown -R www-data:www-data $WWW_DIR
 sudo chmod -R 755 $WWW_DIR
 
+# --- 8. AUTOSTART (Logger + Cleaner) ---
+RC_LOCAL="/etc/rc.local"
+CLEANER_SCRIPT="/usr/local/bin/clean_logs_on_boot.sh"
+
+if [ -f "$CLEANER_SCRIPT" ]; then
+    if ! grep -q "clean_logs_on_boot.sh" "$RC_LOCAL"; then
+        echo "🔧 Dodaję logger do rc.local..."
+        # Sprawdzamy czy rc.local ma exit 0, jeśli tak wstawiamy przed nim
+        if grep -q "exit 0" "$RC_LOCAL"; then
+             sudo sed -i -e '/exit 0/i \/usr/local/bin/clean_logs_on_boot.sh &' "$RC_LOCAL"
+        else
+             sudo sed -i -e '$i \/usr/local/bin/clean_logs_on_boot.sh &\n' "$RC_LOCAL"
+        fi
+    fi
+fi
+
+# --- 9. FIX WIFI POWER SAVE (Network Manager) ---
+# Orange Pi często też ma ten problem, warto to dodać.
+NM_CONF="/etc/NetworkManager/conf.d/default-wifi-powersave-on.conf"
+if [ ! -f "$NM_CONF" ]; then
+    echo "🔧 Konfiguracja NetworkManager (Power Save OFF)..."
+    sudo mkdir -p /etc/NetworkManager/conf.d
+    echo -e "[connection]\nwifi.powersave = 2" | sudo tee "$NM_CONF" > /dev/null
+    sudo systemctl restart NetworkManager
+fi
+
+# 10. SAMO-AKTUALIZACJA
 if ! cmp -s "$GIT_DIR/update_dashboard.sh" "/usr/local/bin/update_dashboard.sh"; then
-    echo "Znaleziono nową wersję skryptu aktualizacji. Instaluję..."
+    echo "Aktualizuję instalator..."
     sudo cp "$GIT_DIR/update_dashboard.sh" /usr/local/bin/
     sudo chmod +x /usr/local/bin/update_dashboard.sh
-    echo "Skrypt zaktualizowany."
 fi
 
 echo "--- KONIEC AKTUALIZACJI ---"
