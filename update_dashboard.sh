@@ -27,7 +27,7 @@ cd $GIT_DIR
 git reset --hard
 git pull origin main
 
-# 3. Instaluj Python tools (WAŻNE dla Smart Configa)
+# 3. Instaluj Python tools
 if compgen -G "$GIT_DIR/*.py" > /dev/null; then
     sudo cp $GIT_DIR/*.py /usr/local/bin/
     sudo chmod +x /usr/local/bin/*.py
@@ -36,7 +36,7 @@ fi
 # 4. Instaluj nowe skrypty (Logger, Cleaner)
 for script in $GIT_DIR/*.sh; do
     filename=$(basename "$script")
-    # Nie nadpisuj samego siebie w trakcie pętli
+    # Omijamy plik update_dashboard.sh w tej petli
     if [ "$filename" != "update_dashboard.sh" ]; then
         sudo cp "$script" /usr/local/bin/
         sudo chmod +x "/usr/local/bin/$filename"
@@ -69,7 +69,6 @@ CLEANER_SCRIPT="/usr/local/bin/clean_logs_on_boot.sh"
 if [ -f "$CLEANER_SCRIPT" ]; then
     if ! grep -q "clean_logs_on_boot.sh" "$RC_LOCAL"; then
         echo "🔧 Dodaję logger do rc.local..."
-        # Sprawdzamy czy rc.local ma exit 0, jeśli tak wstawiamy przed nim
         if grep -q "exit 0" "$RC_LOCAL"; then
              sudo sed -i -e '/exit 0/i \/usr/local/bin/clean_logs_on_boot.sh &' "$RC_LOCAL"
         else
@@ -79,7 +78,6 @@ if [ -f "$CLEANER_SCRIPT" ]; then
 fi
 
 # --- 9. FIX WIFI POWER SAVE (Network Manager) ---
-# Orange Pi często też ma ten problem, warto to dodać.
 NM_CONF="/etc/NetworkManager/conf.d/default-wifi-powersave-on.conf"
 if [ ! -f "$NM_CONF" ]; then
     echo "🔧 Konfiguracja NetworkManager (Power Save OFF)..."
