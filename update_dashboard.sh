@@ -70,34 +70,33 @@ if [ -f "$RC_LOCAL" ]; then
     sudo sed -i '/tail -F/d' "$RC_LOCAL"
 fi
 
+sudo systemctl stop svxlink-logger 2>/dev/null
 sudo pkill -f "tail -F /var/log/svxlink"
+
 if [ -f /var/www/html/svx_events.log ]; then
     sudo truncate -s 0 /var/www/html/svx_events.log
     sudo chmod 666 /var/www/html/svx_events.log
 fi
 
 LOGGER_SERVICE="/etc/systemd/system/svxlink-logger.service"
-LOG_CMD="/bin/sh -c '/usr/bin/tail -n 0 -F /var/log/svxlink >> /var/www/html/svx_events.log'"
+SMART_CMD="/bin/sh -c '/usr/bin/tail -n 0 -F /var/log/svxlink | /usr/bin/grep --line-buffered -E \"Connected nodes|Node joined|Node left|Talker start|Selecting TG\" >> /var/www/html/svx_events.log'"
 
-if [ ! -f "$LOGGER_SERVICE" ]; then
-    echo "[Unit]" > "$LOGGER_SERVICE"
-    echo "Description=SvxLink Web Dashboard Logger" >> "$LOGGER_SERVICE"
-    echo "After=network.target svxlink.service" >> "$LOGGER_SERVICE"
-    echo "" >> "$LOGGER_SERVICE"
-    echo "[Service]" >> "$LOGGER_SERVICE"
-    echo "Type=simple" >> "$LOGGER_SERVICE"
-    echo "ExecStart=$LOG_CMD" >> "$LOGGER_SERVICE"
-    echo "Restart=always" >> "$LOGGER_SERVICE"
-    echo "RestartSec=5" >> "$LOGGER_SERVICE"
-    echo "User=root" >> "$LOGGER_SERVICE"
-    echo "" >> "$LOGGER_SERVICE"
-    echo "[Install]" >> "$LOGGER_SERVICE"
-    echo "WantedBy=multi-user.target" >> "$LOGGER_SERVICE"
+echo "[Unit]" > "$LOGGER_SERVICE"
+echo "Description=SvxLink Web Dashboard Smart Logger" >> "$LOGGER_SERVICE"
+echo "After=network.target svxlink.service" >> "$LOGGER_SERVICE"
+echo "" >> "$LOGGER_SERVICE"
+echo "[Service]" >> "$LOGGER_SERVICE"
+echo "Type=simple" >> "$LOGGER_SERVICE"
+echo "ExecStart=$SMART_CMD" >> "$LOGGER_SERVICE"
+echo "Restart=always" >> "$LOGGER_SERVICE"
+echo "RestartSec=5" >> "$LOGGER_SERVICE"
+echo "User=root" >> "$LOGGER_SERVICE"
+echo "" >> "$LOGGER_SERVICE"
+echo "[Install]" >> "$LOGGER_SERVICE"
+echo "WantedBy=multi-user.target" >> "$LOGGER_SERVICE"
 
-    sudo systemctl daemon-reload
-    sudo systemctl enable svxlink-logger
-fi
-
+sudo systemctl daemon-reload
+sudo systemctl enable svxlink-logger
 sudo systemctl restart svxlink-logger
 
 SERVICE_FILE="/etc/systemd/system/ping-keepalive.service"
