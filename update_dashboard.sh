@@ -63,21 +63,20 @@ sudo chmod 666 /var/www/html/svx_events.log
 
 LOGGER_SERVICE="/etc/systemd/system/svxlink-logger.service"
 if [ ! -f "$LOGGER_SERVICE" ]; then
-    cat <<EOF > "$LOGGER_SERVICE"
-[Unit]
-Description=SvxLink Web Dashboard Logger
-After=network.target svxlink.service
+    echo "[Unit]" > "$LOGGER_SERVICE"
+    echo "Description=SvxLink Web Dashboard Logger" >> "$LOGGER_SERVICE"
+    echo "After=network.target svxlink.service" >> "$LOGGER_SERVICE"
+    echo "" >> "$LOGGER_SERVICE"
+    echo "[Service]" >> "$LOGGER_SERVICE"
+    echo "Type=simple" >> "$LOGGER_SERVICE"
+    echo "ExecStart=/bin/sh -c '/usr/bin/tail -n 0 -F /var/log/svxlink >> /var/www/html/svx_events.log'" >> "$LOGGER_SERVICE"
+    echo "Restart=always" >> "$LOGGER_SERVICE"
+    echo "RestartSec=5" >> "$LOGGER_SERVICE"
+    echo "User=root" >> "$LOGGER_SERVICE"
+    echo "" >> "$LOGGER_SERVICE"
+    echo "[Install]" >> "$LOGGER_SERVICE"
+    echo "WantedBy=multi-user.target" >> "$LOGGER_SERVICE"
 
-[Service]
-Type=simple
-ExecStart=/bin/sh -c '/usr/bin/tail -n 0 -F /var/log/svxlink >> /var/www/html/svx_events.log'
-Restart=always
-RestartSec=5
-User=root
-
-[Install]
-WantedBy=multi-user.target
-EOF
     sudo systemctl daemon-reload
     sudo systemctl enable svxlink-logger
 fi
@@ -89,19 +88,18 @@ PING_PATH=$(which ping)
 if [ -z "$PING_PATH" ]; then PING_PATH="/bin/ping"; fi
 
 if [ ! -f "$SERVICE_FILE" ]; then
-    cat <<EOF > "$SERVICE_FILE"
-[Unit]
-Description=Ping Keepalive
-After=network.target
+    echo "[Unit]" > "$SERVICE_FILE"
+    echo "Description=Ping Keepalive" >> "$SERVICE_FILE"
+    echo "After=network.target" >> "$SERVICE_FILE"
+    echo "" >> "$SERVICE_FILE"
+    echo "[Service]" >> "$SERVICE_FILE"
+    echo "ExecStart=$PING_PATH -i 15 8.8.8.8" >> "$SERVICE_FILE"
+    echo "Restart=always" >> "$SERVICE_FILE"
+    echo "User=root" >> "$SERVICE_FILE"
+    echo "" >> "$SERVICE_FILE"
+    echo "[Install]" >> "$SERVICE_FILE"
+    echo "WantedBy=multi-user.target" >> "$SERVICE_FILE"
 
-[Service]
-ExecStart=$PING_PATH -i 15 8.8.8.8
-Restart=always
-User=root
-
-[Install]
-WantedBy=multi-user.target
-EOF
     sudo systemctl daemon-reload
     sudo systemctl enable ping-keepalive
 fi
