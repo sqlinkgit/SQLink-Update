@@ -64,14 +64,31 @@ fi
 sudo chown -R www-data:www-data $WWW_DIR
 sudo chmod -R 755 $WWW_DIR
 
-RC_LOCAL="/etc/rc.local"
-if [ -f "$RC_LOCAL" ]; then
-    sudo sed -i '/simple_logger.sh/d' "$RC_LOCAL"
-    sudo sed -i '/tail -F/d' "$RC_LOCAL"
+cat <<EOF > /usr/local/bin/clean_logs_on_boot.sh
+#!/bin/bash
+if [ -f /var/log/svxlink ]; then
+    TIMESTAMP=\$(date +"%Y%m%d_%H%M%S")
+    mkdir -p /root/svxlink_history
+    cp /var/log/svxlink "/root/svxlink_history/svxlink_\$TIMESTAMP.log"
+    truncate -s 0 /var/log/svxlink
+fi
+truncate -s 0 /var/www/html/svx_events.log
+EOF
+chmod +x /usr/local/bin/clean_logs_on_boot.sh
+
+sed -i '/clean_logs_on_boot.sh/d' /etc/rc.local
+sed -i '/tail -F/d' /etc/rc.local
+
+if grep -q "exit 0" /etc/rc.local; then
+    sed -i '/exit 0/i \/usr/local/bin/clean_logs_on_boot.sh &' /etc/rc.local
+else
+    echo "/usr/local/bin/clean_logs_on_boot.sh &" >> /etc/rc.local
+    echo "exit 0" >> /etc/rc.local
 fi
 
 sudo systemctl stop svxlink-logger 2>/dev/null
-sudo pkill -f "tail -F /var/log/svxlink"
+sudo pkill -f "tail -F"
+sudo pkill -f "tail -n 0"
 
 if [ -f /var/www/html/svx_events.log ]; then
     sudo truncate -s 0 /var/www/html/svx_events.log
