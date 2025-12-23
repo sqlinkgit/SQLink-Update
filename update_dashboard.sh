@@ -64,31 +64,39 @@ fi
 sudo chown -R www-data:www-data $WWW_DIR
 sudo chmod -R 755 $WWW_DIR
 
+
 cat <<EOF > /usr/local/bin/clean_logs_on_boot.sh
 #!/bin/bash
+# Archiwizacja starego loga systemowego
 if [ -f /var/log/svxlink ]; then
     TIMESTAMP=\$(date +"%Y%m%d_%H%M%S")
     mkdir -p /root/svxlink_history
     cp /var/log/svxlink "/root/svxlink_history/svxlink_\$TIMESTAMP.log"
     truncate -s 0 /var/log/svxlink
 fi
+# Czyszczenie loga WWW (dla pewnosci)
 truncate -s 0 /var/www/html/svx_events.log
 EOF
 chmod +x /usr/local/bin/clean_logs_on_boot.sh
 
-sed -i '/clean_logs_on_boot.sh/d' /etc/rc.local
-sed -i '/tail -F/d' /etc/rc.local
 
-if grep -q "exit 0" /etc/rc.local; then
-    sed -i '/exit 0/i \/usr/local/bin/clean_logs_on_boot.sh &' /etc/rc.local
-else
-    echo "/usr/local/bin/clean_logs_on_boot.sh &" >> /etc/rc.local
-    echo "exit 0" >> /etc/rc.local
-fi
+cat <<EOF > /etc/rc.local
+#!/bin/sh -e
+#
+# rc.local
+# This script is executed at the end of each multiuser runlevel.
+
+/usr/local/bin/clean_logs_on_boot.sh &
+
+exit 0
+EOF
+chmod +x /etc/rc.local
+
 
 sudo systemctl stop svxlink-logger 2>/dev/null
 sudo pkill -f "tail -F"
 sudo pkill -f "tail -n 0"
+
 
 if [ -f /var/www/html/svx_events.log ]; then
     sudo truncate -s 0 /var/www/html/svx_events.log
