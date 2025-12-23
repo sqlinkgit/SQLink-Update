@@ -8,6 +8,7 @@ echo "--- START UPDATE ---"
 date
 sleep 3
 
+# 1. POBIERANIE REPOZYTORIUM
 if [ ! -d "$GIT_DIR" ]; then
     cd /root
     git clone $GIT_URL
@@ -19,6 +20,23 @@ else
     git pull origin main
 fi
 
+# 2. AUTO-AKTUALIZACJA SAMEGO INSTALATORA (FIX BŁĘDU EOF)
+# To musi być zaraz po git pull, aby zrestartować skrypt przed wykonaniem reszty
+SCRIPT_PATH="/usr/local/bin/update_dashboard.sh"
+REPO_SCRIPT="$GIT_DIR/update_dashboard.sh"
+
+if [ -f "$SCRIPT_PATH" ] && [ -f "$REPO_SCRIPT" ]; then
+    if ! cmp -s "$REPO_SCRIPT" "$SCRIPT_PATH"; then
+        echo "🔧 Wykryto nową wersję instalatora. Aktualizowanie i restart..."
+        sudo cp "$REPO_SCRIPT" "$SCRIPT_PATH"
+        sudo chmod +x "$SCRIPT_PATH"
+        # Komenda exec podmienia proces - stary skrypt znika, wchodzi nowy
+        exec sudo "$SCRIPT_PATH"
+        exit 0
+    fi
+fi
+
+# 3. INSTALACJA POZOSTAŁYCH PLIKÓW
 if compgen -G "$GIT_DIR/*.py" > /dev/null; then
     sudo cp $GIT_DIR/*.py /usr/local/bin/
     sudo chmod +x /usr/local/bin/*.py
@@ -51,6 +69,7 @@ fi
 sudo chown -R www-data:www-data $WWW_DIR
 sudo chmod -R 755 $WWW_DIR
 
+# 4. SPRZĄTANIE STARYCH METOD
 RC_LOCAL="/etc/rc.local"
 if [ -f "$RC_LOCAL" ]; then
     sudo sed -i '/simple_logger.sh/d' "$RC_LOCAL"
@@ -58,10 +77,17 @@ if [ -f "$RC_LOCAL" ]; then
 fi
 
 sudo pkill -f "tail -F /var/log/svxlink"
-sudo truncate -s 0 /var/www/html/svx_events.log
-sudo chmod 666 /var/www/html/svx_events.log
+# Czyścimy log tylko jeśli jest zablokowany/ogromny, ale delikatnie
+if [ -f /var/www/html/svx_events.log ]; then
+    sudo truncate -s 0 /var/www/html/svx_events.log
+    sudo chmod 666 /var/www/html/svx_events.log
+fi
 
+# 5. KONFIGURACJA USŁUG (Bezpieczna składnia echo)
 LOGGER_SERVICE="/etc/systemd/system/svxlink-logger.service"
+# Używamy zmiennej, aby uniknąć problemów z cudzysłowami w echo
+LOG_CMD="/bin/sh -c '/usr/bin/tail -n 0 -F /var/log/svxlink >> /var/www/html/svx_events.log'"
+
 if [ ! -f "$LOGGER_SERVICE" ]; then
     echo "[Unit]" > "$LOGGER_SERVICE"
     echo "Description=SvxLink Web Dashboard Logger" >> "$LOGGER_SERVICE"
@@ -69,7 +95,7 @@ if [ ! -f "$LOGGER_SERVICE" ]; then
     echo "" >> "$LOGGER_SERVICE"
     echo "[Service]" >> "$LOGGER_SERVICE"
     echo "Type=simple" >> "$LOGGER_SERVICE"
-    echo "ExecStart=/bin/sh -c '/usr/bin/tail -n 0 -F /var/log/svxlink >> /var/www/html/svx_events.log'" >> "$LOGGER_SERVICE"
+    echo "ExecStart=$LOG_CMD" >> "$LOGGER_SERVICE"
     echo "Restart=always" >> "$LOGGER_SERVICE"
     echo "RestartSec=5" >> "$LOGGER_SERVICE"
     echo "User=root" >> "$LOGGER_SERVICE"
@@ -105,10 +131,5 @@ if [ ! -f "$SERVICE_FILE" ]; then
 fi
 
 sudo systemctl restart ping-keepalive
-
-if ! cmp -s "$GIT_DIR/update_dashboard.sh" "/usr/local/bin/update_dashboard.sh"; then
-    sudo cp "$GIT_DIR/update_dashboard.sh" /usr/local/bin/
-    sudo chmod +x /usr/local/bin/update_dashboard.sh
-fi
 
 echo "--- END UPDATE ---"
