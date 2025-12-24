@@ -177,27 +177,91 @@ function loadLogsAndStatus() {
     });
 
     $.get('last_heard.php?t=' + Date.now(), function(data) { $('#lh-content').html(data); });
+}
 
-    $.getJSON('nodes.php?t=' + Date.now(), function(nodes) {
-        let html = "";
-        let myCall = GLOBAL_CALLSIGN;
-        let sortedKeys = Object.keys(nodes).sort();
-        if(nodes[myCall]) { sortedKeys = sortedKeys.filter(n => n !== myCall); sortedKeys.unshift(myCall); }
-        if (sortedKeys.length === 0) { html = "<div style='color:#777; grid-column:1/-1; text-align:center;'>Brak danych...</div>"; }
-        else {
-            sortedKeys.forEach(call => {
-                let info = nodes[call];
-                let isMe = (call === myCall);
-                let style = isMe ? "border-color:#4CAF50; background:#2e352e;" : "";
-                let tgBadge = (info.tg && info.tg !== '' && info.tg !== '?') ? `<div style="margin-left:auto; background:#FF9800; color:#000; font-size:10px; padding:2px 5px; border-radius:3px; font-weight:bold;">TG ${info.tg}</div>` : '';
-                html += `<div class="node-item" style="${style}"><div class="node-icon">📻</div><div class="node-name">${call} ${isMe ? '(TY)' : ''}</div>${tgBadge}</div>`;
+
+var cachedNodesData = {};
+
+function updateNodes() {
+    $.getJSON('nodes.php', function(data) {
+        if (!data || !data.nodes) return;
+        cachedNodesData = data.nodes;
+        
+        var myCall = GLOBAL_CALLSIGN;
+        var nodeKeys = Object.keys(data.nodes).sort();
+        
+        var html = "";
+        
+        if (nodeKeys.length === 0) {
+            html = "<div style='grid-column:1/-1;text-align:center;color:#777;'>Brak aktywnych węzłów</div>";
+        } else {
+            nodeKeys.forEach(function(call) {
+                var isMe = (call === myCall);
+                var cssClass = isMe ? "node-item is-me" : "node-item";
+                
+                html += `<div class="${cssClass}" onmouseenter="showTooltip(event, '${call}')" onmouseleave="hideTooltip()" onmousemove="moveTooltip(event)">
+                            <span class="node-icon">📻</span>
+                            <span class="node-name">${call}</span>
+                         </div>`;
             });
         }
+        
         $("#nodes-content").html(html);
     });
 }
 
+function showTooltip(e, callsign) {
+    if (!cachedNodesData[callsign]) return;
+    
+    var info = cachedNodesData[callsign];
+    var tooltip = document.getElementById('node-tooltip');
+    
+    $("#nt-callsign").text(callsign);
+    $("#nt-sw").text((info.sw || "") + " " + (info.swVer || ""));
+    
+    var activeTg = (info.tg && info.tg !== 0) ? info.tg : "Brak (Czuwanie)";
+    $("#nt-tg").text(activeTg);
+    
+    var monitored = "---";
+    if (info.monitoredTGs && Array.isArray(info.monitoredTGs) && info.monitoredTGs.length > 0) {
+        monitored = info.monitoredTGs.join(", ");
+    }
+    $("#nt-monitored").text(monitored);
+    
+    var location = info.nodeLocation || "---";
+    if (info.qth && info.qth.length > 0 && info.qth[0].pos && info.qth[0].pos.loc) {
+        location = info.qth[0].pos.loc;
+    }
+    $("#nt-loc").text(location);
+    
+    $("#nt-ver").text(info.projVer || "---");
+
+    tooltip.style.display = 'block';
+    moveTooltip(e);
+}
+
+function moveTooltip(e) {
+    var tooltip = document.getElementById('node-tooltip');
+    if(tooltip.style.display === 'block') {
+        var x = e.clientX + 15;
+        var y = e.clientY + 15;
+        
+        if (x + 240 > window.innerWidth) { x = e.clientX - 240; }
+        if (y + 200 > window.innerHeight) { y = e.clientY - 200; }
+        
+        tooltip.style.left = x + 'px';
+        tooltip.style.top = y + 'px';
+    }
+}
+
+function hideTooltip() {
+    document.getElementById('node-tooltip').style.display = 'none';
+}
+
 setInterval(loadLogsAndStatus, 1500);
 setInterval(updateStats, 3000);
+setInterval(updateNodes, 5000);
+
 loadLogsAndStatus();
 updateStats();
+updateNodes();
