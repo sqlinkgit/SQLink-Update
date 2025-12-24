@@ -7,17 +7,26 @@ WWW_DIR="/var/www/html"
 echo "--- START UPDATE ---"
 date
 
+OLD_HASH=""
+NEW_HASH=""
+
 if [ ! -d "$GIT_DIR" ]; then
     cd /root
     git clone $GIT_URL
-    PULL_OUT="Cloned"
+    NEW_HASH="CLONED"
 else
     cd $GIT_DIR
     git config core.fileMode false
+    
+    OLD_HASH=$(git rev-parse HEAD)
+    
     git fetch --all
     git reset --hard origin/main
-    PULL_OUT=$(git pull origin main 2>&1)
-    echo "$PULL_OUT"
+    
+    NEW_HASH=$(git rev-parse HEAD)
+    
+    echo "Old Hash: $OLD_HASH"
+    echo "New Hash: $NEW_HASH"
     
     if [ $? -ne 0 ]; then 
         echo "STATUS: FAILURE"; 
@@ -86,10 +95,12 @@ chmod +x /etc/rc.local
 
 if [[ "$SELF_UPDATED" == "1" ]]; then
     echo "STATUS: SUCCESS"
-elif [[ "$PULL_OUT" == *"Already up to date"* ]]; then
-    echo "STATUS: UP_TO_DATE"
-else
+elif [[ "$NEW_HASH" == "CLONED" ]]; then
     echo "STATUS: SUCCESS"
+elif [[ "$OLD_HASH" != "$NEW_HASH" ]]; then
+    echo "STATUS: SUCCESS"
+else
+    echo "STATUS: UP_TO_DATE"
 fi
 
 exit 0
