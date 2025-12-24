@@ -55,12 +55,31 @@ h1 { margin: 0; color: #fff; font-size: 24px; letter-spacing: 1px; }
 #nt-callsign { font-weight: bold; color: #4CAF50; font-size: 14px; }
 #nt-sw { color: #666; font-size: 10px; }
 
-.nt-body { padding: 10px; }
+.nt-body { padding: 10px; padding-bottom: 35px; }
 .nt-row { margin-bottom: 6px; display: flex; flex-direction: column; }
 .nt-row:last-child { margin-bottom: 0; }
 .nt-label { color: #888; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
 .nt-val { color: #ddd; font-weight: 500; word-break: break-word; }
 .nt-val.hl { color: #FF9800; font-weight: bold; }
+
+.qrz-logo-container {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 1001;
+    display: block;
+    transform: rotate(-4deg) scale(1.05);
+    box-shadow: 3px 3px 8px rgba(0,0,0,0.6);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.qrz-img {
+    height: 24px;
+    width: auto;
+    display: block;
+}
 
 .dtmf-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .panel-box { background: #252525; padding: 15px; border-radius: 5px; border: 1px solid #333; margin-bottom: 20px; }

@@ -20,6 +20,10 @@
             <span class="nt-label">Wersja:</span>
             <span class="nt-val" id="nt-ver">---</span>
         </div>
+        
+        <div class="qrz-logo-container">
+            <img src="qrz.png" alt="QRZ" class="qrz-img">
+        </div>
     </div>
 </div>
 

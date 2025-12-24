@@ -199,7 +199,7 @@ function updateNodes() {
                 var isMe = (call === myCall);
                 var cssClass = isMe ? "node-item is-me" : "node-item";
                 
-                html += `<div class="${cssClass}" onmouseenter="showTooltip(event, '${call}')" onmouseleave="hideTooltip()" onmousemove="moveTooltip(event)">
+                html += `<div class="${cssClass}" onclick="window.open('https://www.qrz.com/db/${call}', '_blank')" onmouseenter="showTooltip(event, '${call}')" onmouseleave="hideTooltip()" onmousemove="moveTooltip(event)">
                             <span class="node-icon">📻</span>
                             <span class="node-name">${call}</span>
                          </div>`;
