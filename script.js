@@ -68,25 +68,47 @@ function loadLogsAndStatus() {
         var reversedData = logLines.reverse().join('\n');
         $('#log-content').html(reversedData);
 
-        let lastConnect = data.lastIndexOf("ReflectorLogic: Connection established");
-        let lastDisconnect = data.lastIndexOf("ReflectorLogic: Disconnected");
-        let lastAuthFail = data.lastIndexOf("ReflectorLogic: Authentication failed");
-        let lastBad = Math.max(lastDisconnect, lastAuthFail);
+        let lastConnect = Math.max(
+            data.lastIndexOf("ReflectorLogic: Connection established"),
+            data.lastIndexOf("ReflectorLogic: Connected nodes"),
+            data.lastIndexOf("ReflectorLogic: Talker start")
+        );
 
-        if (lastConnect > lastBad) {
-            $("#main-status-text").text("ONLINE (Reflector)").removeClass("inactive").addClass("active");
-            $("#main-status-dot").removeClass("red").addClass("green").addClass("blink");
-            $("#ref-status").html("PODŁĄCZONY").css("color", "#4CAF50");
+        let lastDisconnect = Math.max(
+            data.lastIndexOf("ReflectorLogic: Disconnected"),
+            data.lastIndexOf("ReflectorLogic: Authentication failed")
+        );
+        
+        let isOnline = false;
+        if (data.length < 50) {
+             $("#main-status-text").text("SYSTEM START...").removeClass("inactive").addClass("active");
+             $("#main-status-dot").removeClass("red").addClass("orange").addClass("blink");
         } else {
+             if (lastConnect > lastDisconnect || (lastConnect === -1 && lastDisconnect === -1)) {
+                isOnline = true;
+            } else {
+                isOnline = false;
+            }
+        }
+
+        if (isOnline) {
+            $("#main-status-text").text("ONLINE (Reflector)").removeClass("inactive").addClass("active");
+            $("#main-status-dot").removeClass("red").removeClass("orange").addClass("green").addClass("blink");
+            $("#ref-status").html("PODŁĄCZONY").css("color", "#4CAF50");
+        } else if (data.length >= 50) {
             $("#main-status-text").text("OFFLINE (Reflector)").removeClass("active").addClass("inactive");
-            $("#main-status-dot").removeClass("green").addClass("red").removeClass("blink");
+            $("#main-status-dot").removeClass("green").removeClass("orange").addClass("red").removeClass("blink");
             $("#ref-status").html("ROZŁĄCZONY").css("color", "#F44336");
         }
 
         let lastOn = data.lastIndexOf("EchoLink directory status changed to ON");
         let lastOff = Math.max(data.lastIndexOf("EchoLink directory status changed to ?"), data.lastIndexOf("Disconnected from EchoLink proxy"));
-        if (lastOn > lastOff) { $("#el-live-status").text("CONNECTED").removeClass("el-disconnected").addClass("el-connected"); }
-        else { $("#el-live-status").text("DISCONNECTED - Sprawdź Config!").removeClass("el-connected").addClass("el-disconnected"); }
+        
+        if (lastOn > lastOff) { 
+            $("#el-live-status").text("CONNECTED").removeClass("el-disconnected").addClass("el-connected"); 
+        } else if (lastOff > -1) { 
+            $("#el-live-status").text("DISCONNECTED").removeClass("el-connected").addClass("el-disconnected"); 
+        }
 
         let isTalking = false;
         let currentCallsign = "---";
@@ -95,8 +117,18 @@ function loadLogsAndStatus() {
 
         let lastStartPos = -1; let lastStopPos = -1;
         let talkerRegex = /Talker start on TG #(\d+): ([A-Z0-9-\/]+)/g;
-        let match; while ((match = talkerRegex.exec(data)) !== null) { lastStartPos = match.index; currentTG = match[1]; currentCallsign = match[2]; }
-        let stopRegex = /Talker stop on TG/g; while ((match = stopRegex.exec(data)) !== null) { lastStopPos = match.index; }
+        let match; 
+        
+        while ((match = talkerRegex.exec(data)) !== null) { 
+            lastStartPos = match.index; 
+            currentTG = match[1]; 
+            currentCallsign = match[2]; 
+        }
+        
+        let stopRegex = /Talker stop on TG/g; 
+        while ((match = stopRegex.exec(data)) !== null) { 
+            lastStopPos = match.index; 
+        }
 
         if (lastStartPos > lastStopPos && lastStartPos !== -1) {
             isTalking = true;
@@ -105,13 +137,17 @@ function loadLogsAndStatus() {
 
         let lastTxOn = data.lastIndexOf("Tx1: Turning the transmitter ON");
         let lastTxOff = data.lastIndexOf("Tx1: Turning the transmitter OFF");
+        
         if (lastTxOn > lastTxOff && lastTxOn !== -1) {
-            isTalking = true;
-            statusText = "NADAWANIE (TX)..."; 
+            if(!isTalking) {
+                isTalking = true;
+                statusText = "NADAWANIE (TX)..."; 
+            }
         }
 
         let lastSqOpen = data.lastIndexOf("Rx1: The squelch is OPEN");
         let lastSqClose = data.lastIndexOf("Rx1: The squelch is CLOSED");
+        
         if (lastSqOpen > lastSqClose && lastSqOpen !== -1) {
             isTalking = true;
             statusText = "ODBIERANIE (RX - LOCAL)...";
@@ -125,15 +161,14 @@ function loadLogsAndStatus() {
             $(".live-callsign").text(currentCallsign);
             if(currentTG) $(".live-tg").text("TG " + currentTG).css("color", "#FF9800");
 
-            if (statusText.includes("RX")) {
-                // ZIELONY - Ty mówisz
+            if (statusText.includes("RX") || statusText.includes("ODBIERANIE")) {
                 $(".live-box").addClass("rx-active");
                 $(".live-status, .live-callsign").css("color", "#4CAF50");
             } else {
-                // POMARAŃCZOWY - Internet mówi
                 $(".live-box").addClass("tx-active");
                 $(".live-status, .live-callsign").css("color", "#FF9800");
             }
+
         } else {
             $(".live-status").text("STAN: CZUWANIE (Standby)").css("color", "#666");
             $(".live-callsign").text("---").css("color", "#fff");
