@@ -37,6 +37,61 @@ function openTab(evt, tabName) {
     localStorage.setItem('activeTab', tabName);
 }
 
+function initModuleToggles() {
+    var input = document.getElementById('input-modules');
+    if(!input) return;
+    
+    var currentModules = input.value.split(',').map(s => s.trim());
+    
+    var btnIds = ['ModuleHelp', 'ModuleParrot', 'ModuleEchoLink'];
+    
+    btnIds.forEach(function(modName) {
+        var btn = document.getElementById('btn-' + modName);
+        if(btn) {
+            var shortName = modName.replace('Module', '');
+            if (currentModules.includes(modName) || currentModules.includes(shortName)) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    });
+
+    var elPassInput = document.getElementById('el-pass');
+    if(elPassInput) {
+        elPassInput.addEventListener('input', function() {
+            if(this.value.length > 0) {
+                var elBtn = document.getElementById('btn-ModuleEchoLink');
+                if(elBtn && !elBtn.classList.contains('active')) {
+                    toggleModule('ModuleEchoLink');
+                }
+            }
+        });
+    }
+}
+
+function toggleModule(modName) {
+    var btn = document.getElementById('btn-' + modName);
+    var input = document.getElementById('input-modules');
+    if(!btn || !input) return;
+    
+    var isActive = btn.classList.contains('active');
+    var currentList = input.value.split(',').map(s => s.trim()).filter(s => s !== "");
+    
+    if (isActive) {
+        btn.classList.remove('active');
+        var shortName = modName.replace('Module', '');
+        currentList = currentList.filter(s => s !== modName && s !== shortName);
+    } else {
+        btn.classList.add('active');
+        if (!currentList.includes(modName)) {
+            currentList.push(modName);
+        }
+    }
+    
+    input.value = currentList.join(',');
+}
+
 document.addEventListener("DOMContentLoaded", function() {
     var storedTab = localStorage.getItem('activeTab');
     if (storedTab) { openTab(null, storedTab); } else { openTab(null, 'Dashboard'); }
@@ -46,6 +101,8 @@ document.addEventListener("DOMContentLoaded", function() {
             $(".alert").slideUp(500, function(){ $(this).remove(); });
         }, 5000);
     }
+    
+    initModuleToggles();
 });
 
 function updateStats() {
@@ -219,20 +276,40 @@ function showTooltip(e, callsign) {
     $("#nt-callsign").text(callsign);
     $("#nt-sw").text((info.sw || "") + " " + (info.swVer || ""));
     
+    var name = "---";
+    if (info.Sysop) {
+         name = info.Sysop;
+    } else if (info.sysop) {
+         name = info.sysop;
+    } else if (info.qth && info.qth.length > 0 && info.qth[0].name) {
+         name = info.qth[0].name;
+    }
+    $("#nt-name").text(name);
+
     var activeTg = (info.tg && info.tg !== 0) ? info.tg : "Brak (Czuwanie)";
     $("#nt-tg").text(activeTg);
+    
+    var locator = "---";
+    if (info.Locator) {
+        locator = info.Locator;
+    } else if (info.qth && info.qth.length > 0 && info.qth[0].pos && info.qth[0].pos.loc) {
+        locator = info.qth[0].pos.loc;
+    }
+    $("#nt-qth").text(locator);
+
+    var location = "---";
+    if (info.Location) {
+        location = info.Location;
+    } else if (info.nodeLocation) {
+        location = info.nodeLocation;
+    }
+    $("#nt-loc").text(location);
     
     var monitored = "---";
     if (info.monitoredTGs && Array.isArray(info.monitoredTGs) && info.monitoredTGs.length > 0) {
         monitored = info.monitoredTGs.join(", ");
     }
     $("#nt-monitored").text(monitored);
-    
-    var location = info.nodeLocation || "---";
-    if (info.qth && info.qth.length > 0 && info.qth[0].pos && info.qth[0].pos.loc) {
-        location = info.qth[0].pos.loc;
-    }
-    $("#nt-loc").text(location);
     
     $("#nt-ver").text(info.projVer || "---");
 
@@ -247,7 +324,7 @@ function moveTooltip(e) {
         var y = e.clientY + 15;
         
         if (x + 240 > window.innerWidth) { x = e.clientX - 240; }
-        if (y + 200 > window.innerHeight) { y = e.clientY - 200; }
+        if (y + 300 > window.innerHeight) { y = e.clientY - 300; }
         
         tooltip.style.left = x + 'px';
         tooltip.style.top = y + 'px';

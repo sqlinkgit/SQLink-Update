@@ -4,18 +4,32 @@
         <span id="nt-sw"></span>
     </div>
     <div class="nt-body">
+        
+        <div class="nt-row">
+            <span class="nt-label">Operator:</span>
+            <span class="nt-val hl" id="nt-name">---</span>
+        </div>
+
         <div class="nt-row">
             <span class="nt-label">Aktualna Grupa (TG):</span>
-            <span class="nt-val hl" id="nt-tg">---</span>
+            <span class="nt-val" id="nt-tg">---</span>
         </div>
+
+        <div class="nt-row">
+            <span class="nt-label">Lokator QTH:</span>
+            <span class="nt-val" id="nt-qth">---</span>
+        </div>
+
+        <div class="nt-row">
+            <span class="nt-label">Miasto / Opis:</span>
+            <span class="nt-val" id="nt-loc">---</span>
+        </div>
+        
         <div class="nt-row">
             <span class="nt-label">Monitorowane:</span>
             <span class="nt-val" id="nt-monitored">---</span>
         </div>
-        <div class="nt-row">
-            <span class="nt-label">Lokalizacja:</span>
-            <span class="nt-val" id="nt-loc">---</span>
-        </div>
+        
         <div class="nt-row">
             <span class="nt-label">Wersja:</span>
             <span class="nt-val" id="nt-ver">---</span>
