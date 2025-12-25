@@ -1,48 +1,51 @@
 #!/bin/bash
 
-# Ustawiamy plik logu
 LOG_FILE="/var/log/wifi_guard.log"
 
-# Przekierowanie wszystkiego do pliku logu
 exec > >(tee -a $LOG_FILE) 2>&1
 
 echo "----------------------------------------"
-echo "$(date): [START] Strażnik WiFi uruchomiony (v2)."
+echo "$(date): [START] Strażnik WiFi (v3 - Force Mode)"
 echo "$(date): Czekam 75 sekund na ustabilizowanie sieci..."
 
-sleep 35
+sleep 75
 
 echo "$(date): Sprawdzam stan połączenia..."
 
-# Pobieramy dokładny status
+nmcli radio wifi on
+sleep 2
+
 STATUS=$(nmcli -t -f GENERAL.STATE device show wlan0)
 echo "$(date): Aktualny status NetworkManager: $STATUS"
 
-# POPRAWKA: Szukamy ":100", co oznacza pełne połączenie (connected global)
-# Wcześniej szukaliśmy "connected", co pasowało też do "disconnected".
 if echo "$STATUS" | grep -q ":100"; then
     echo "$(date): [SUKCES] Kod 100 wykryty. Jesteśmy online. Kończę pracę."
     exit 0
 else
-    echo "$(date): [ALARM] Brak kodu 100 (Brak pełnego połączenia)!"
-    echo "$(date): Próbuję uruchomić tryb ratunkowy (Rescue_AP)..."
+    echo "$(date): [ALARM] Brak internetu!"
+    echo "$(date): Uruchamiam procedurę ratunkową..."
     
-    # Próba siłowego rozłączenia
     echo "$(date): Rozłączam wlan0..."
-    nmcli device disconnect wlan0
-    sleep 5
+    nmcli device disconnect wlan0 >/dev/null 2>&1
+    sleep 2
     
-    # Uruchomienie AP
+    nmcli connection delete "Rescue_AP" >/dev/null 2>&1
+    
+    echo "$(date): Tworzę profil Rescue_AP..."
+    nmcli con add type wifi ifname wlan0 con-name "Rescue_AP" autoconnect yes ssid "SQLink_WiFi_AP"
+    nmcli con modify "Rescue_AP" 802-11-wireless.mode ap 802-11-wireless.band bg ipv4.method shared
+    nmcli con modify "Rescue_AP" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "sqlink123"
+
+    sleep 3
+
     echo "$(date): Podnoszę profil Rescue_AP..."
-    nmcli connection up Rescue_AP
+    nmcli connection up "Rescue_AP"
     
     RESULT=$?
     if [ $RESULT -eq 0 ]; then
         echo "$(date): [SUKCES] Hotspot uruchomiony. IP: 192.168.4.1"
     else
         echo "$(date): [BŁĄD] Nie udało się uruchomić AP! Kod błędu: $RESULT"
-        # Próba restartu NetworkManagera w akcie desperacji
-        # sudo systemctl restart NetworkManager
     fi
 fi
 
