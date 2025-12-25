@@ -26,43 +26,41 @@
 </div>
 
 <div class="help-section" style="border-left: 5px solid #FF9800;">
-    <div class="help-title"><span class="help-icon">🆘</span> 2. Tryb Ratunkowy WiFi</div>
+    <div class="help-title"><span class="help-icon">🆘</span> 2. Tryb Ratunkowy WiFi (Ważne!)</div>
     <div class="help-text">
-        Jeśli Orange Pi zgubi sieć, automatycznie utworzy własny Hotspot.
+        Twoje Orange Pi Zero nie ma gniazda Ethernet, więc co zrobić, gdy zmienisz router lub pójdziesz z nim w teren?
         <br><br>
         <div style="border: 3px solid #FF9800; padding: 15px; border-radius: 8px;">
-            <strong>🚨 Jak odzyskać łączność?</strong><br><br>
-            1. Poczekaj około <strong>2 minuty</strong> po uruchomieniu.<br>
-            2. Szukaj sieci WiFi: <span style="color:#FF9800; font-size:1.1em; font-weight:bold;">SQLink_WiFi_AP</span><br>
+            <strong>🚨 Jak odzyskać łączność bez monitora?</strong><br><br>
+            1. Włącz Hotspota tam, gdzie nie ma Twojej domowej sieci WiFi.<br>
+            2. Poczekaj cierpliwie około <strong>2 minuty</strong> (system musi "zrozumieć", że nie ma internetu).<br>
+            3. Hotspot automatycznie stworzy własną sieć WiFi!<br><br>
+            📱 <strong>Szukaj sieci (SSID):</strong> <span style="color:#FF9800; font-size:1.1em; font-weight:bold;">SQLink_WiFi_AP</span><br>
             🔐 <strong>Hasło:</strong> <code>sqlink123</code><br>
-            🌐 <strong>Adres:</strong> <a href="http://192.168.4.1" target="_blank" style="color:#FF9800; font-weight:bold;">192.168.4.1</a>
+            🌐 <strong>Adres strony:</strong> <a href="http://192.168.4.1" target="_blank" style="color:#FF9800; font-weight:bold;">192.168.4.1</a><br><br>
+            Połącz się telefonem, wejdź na ten adres, skonfiguruj nowe WiFi w zakładce "WiFi" i zrób Restart. Gotowe!
         </div>
     </div>
 </div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">🔄</span> 3. Tryby Pracy: Reflector vs EchoLink</div>
+    <div class="help-title"><span class="help-icon">🔄</span> 3. Dwa Światy: Reflektor i EchoLink</div>
     <div class="help-text">
-        Hotspot obsługuje dwa główne systemy, które <strong>nie mogą działać jednocześnie</strong>.
-        
+        Pamiętaj: Możesz być tylko w jednym miejscu naraz!
         <div class="help-step">
-            <strong>🅰️ Tryb A: Reflector (SQLink) - Domyślny</strong><br>
-            Działa jak sieć przemienników. Jesteś tu zawsze, gdy nie używasz EchoLinka.<br>
-            <ul>
-                <li>Aby zmienić kanał rozmowny, wybierz przycisk z listy (np. <strong>🇵🇱 Ogólnopolska</strong>).</li>
-                <li>Aby sprawdzić gdzie jesteś, kliknij <strong>ℹ️ Status (*#)</strong>.</li>
-            </ul>
+            <strong>🅰️ Świat A: Reflektor (SQLink)</strong><br>
+            To jest Twój "dom". Jesteś tu zawsze po uruchomieniu.<br>
+            Rozmawiasz z polskimi stacjami na grupach (np. Ogólnopolska).
         </div>
-
         <div class="help-step" style="border-left-color: #2196F3;">
-            <strong>🅱️ Tryb B: EchoLink (Moduł 2)</strong><br>
-            Służy do połączeń z konkretnymi znakami na świecie.<br><br>
-            1. Kliknij <strong>🚀 Aktywuj Moduł (2#)</strong>.<br>
-            2. Wpisz numer węzła (Node ID) i kliknij <strong>📞 Połącz</strong>.<br>
-            <hr style="border: 0; border-top: 1px dashed #555; margin: 10px 0;">
-            🛑 <strong>WAŻNE - KONIEC ROZMOWY:</strong><br>
-            Aby wrócić do sieci SQLink, musisz wyjść z EchoLinka przyciskiem <span style="color:#F44336; font-weight:bold;">Rozłącz (#)</span>.<br>
-            <span style="color:#FF9800;">👉 Jeśli nadal jesteś w EchoLinku, naciśnij <strong>Rozłącz</strong> jeszcze raz! Musisz usłyszeć komunikat "Deactivating module EchoLink".</span>
+            <strong>🅱️ Świat B: EchoLink (Światowy)</strong><br>
+            Chcesz pogadać z kimś z USA, Japonii czy innego miasta?<br>
+            1. Wejdź w zakładkę EchoLink.<br>
+            2. Wybierz numer węzła i kliknij <strong>📞 Połącz</strong>.<br>
+            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 10px 0;">
+            🛑 <strong>BARDZO WAŻNE:</strong> Kiedy skończysz rozmawiać, <strong>MUSISZ SIĘ ROZŁĄCZYĆ!</strong><br>
+            👉 Kliknij przycisk <span style="color:#F44336; font-weight:bold;">📵 Rozłącz (#)</span> lub wpisz <strong>#</strong> na klawiaturze radia.<br>
+            Dopiero gdy usłyszysz "Deactivating module EchoLink", wracasz do polskiej sieci.
         </div>
     </div>
 </div>
@@ -94,14 +92,33 @@
 </div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">☁️</span> 6. Aktualizacje Systemu</div>
+    <div class="help-title"><span class="help-icon">⚡</span> 6. Zasilanie i Aktualizacje</div>
     <div class="help-text">
-        Twój hotspot posiada system automatycznych aktualizacji (OTA).
-        <div class="help-step" style="border-left-color: #4CAF50;">
-            <strong>Jak zaktualizować?</strong><br>
-            Wejdź w zakładkę <strong>⚡ Zasilanie</strong> i kliknij zielony przycisk <strong>☁️ Pobierz Aktualizację</strong>.<br>
-            System automatycznie pobierze najnowsze funkcje.
-        </div>
+        W zakładce <strong>Zasilanie</strong> masz centrum sterowania życiem systemu.
+        <ul>
+            <li><strong>🔄 Reboot / Wyłącz:</strong> Bezpieczne zamykanie systemu. Nie wyrywaj wtyczki z prądu, bo karta pamięci tego nie lubi!</li>
+            <li><strong>☁️ Aktualizuj System:</strong> Kliknij zielony przycisk, żeby pobrać nowości. Hotspot sam połączy się z GitHubem i ściągnie poprawki.</li>
+            <li><strong>♻️ Restart Usługi SvxLink:</strong> "Lekarstwo na wszystko". Jeśli dashboard się zawiesi albo dźwięk zniknie - kliknij to. Trwa to tylko 5-10 sekund.</li>
+        </ul>
+    </div>
+</div>
+
+<div class="help-section">
+    <div class="help-title" style="color: #BA68C8;"><span class="help-icon">💡</span> 7. Wskazówki i Nowe Funkcje (Warto wiedzieć)</div>
+    <div class="help-text">
+        Oto kilka przydatnych funkcji, które ułatwią Ci życie z Hotspotem:
+        <ul>
+            <li style="margin-bottom: 8px;"><strong>🌍 Twoja Wizytówka w Sieci:</strong>
+                <br>W zakładce <strong>Config</strong> uzupełnij nową sekcję <em>"Lokalizacja i Operator"</em>. Dzięki temu Twoje Imię i Miasto będą widoczne dla innych kolegów w sieci (w dymkach informacyjnych i na mapie).
+            </li>
+            <li style="margin-bottom: 8px;"><strong>🖱️ Szybki Podgląd QRZ:</strong>
+                <br>W zakładce <strong>Nodes</strong> (Węzły) kafelki stacji są interaktywne. <strong>Kliknij w znak stacji</strong>, aby natychmiast otworzyć jej profil na QRZ.com w nowym oknie.
+            </li>
+            <li><strong>🎛️ Wygodne Moduły:</strong>
+                <br>W Konfiguracji nie musisz już wpisywać nazw modułów ręcznie. Użyj przycisków, aby włączać/wyłączać funkcje (Help, Parrot, EchoLink). 
+                <br><span style="color:#4CAF50; font-weight:bold;">Zielony</span> = Włączony, <span style="color:#666; font-weight:bold;">Szary</span> = Wyłączony.
+            </li>
+        </ul>
     </div>
 </div>
 
