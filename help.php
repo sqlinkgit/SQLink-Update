@@ -1,6 +1,6 @@
 <h3>🎓 Centrum Dowodzenia i Pomocy (SQLink Orange Pi Edition)</h3>
 <div style="text-align: center; margin-bottom: 20px; font-size: 0.9em; color: #888; background: #222; padding: 5px; border-radius: 4px; border: 1px solid #444;">
-    ℹ️ System zaprojektowany dla: <strong style="color: #FF9800;">Orange Pi Zero</strong> + Karta <strong style="color: #2196F3;">CM108 USB</strong>
+    ℹ️ System zaprojektowany dla: <strong style="color: #FF9800;">Orange Pi Zero</strong> + <strong style="color: #2196F3;">Moduł SA818</strong>
 </div>
 
 <div class="help-section">
@@ -26,19 +26,17 @@
 </div>
 
 <div class="help-section" style="border-left: 5px solid #FF9800;">
-    <div class="help-title"><span class="help-icon">🆘</span> 2. Tryb Ratunkowy WiFi (Ważne!)</div>
+    <div class="help-title"><span class="help-icon">🆘</span> 2. Tryb Ratunkowy WiFi</div>
     <div class="help-text">
-        Twoje Orange Pi Zero nie ma gniazda Ethernet, więc co zrobić, gdy zmienisz router lub pójdziesz z nim w teren?
+        Twoje Orange Pi Zero posiada port Ethernet, ale co zrobić, gdy nie masz pod ręką kabla ("skrętki"), a zmieniłeś router lub zabrałeś hotspot w teren?
         <br><br>
         <div style="border: 3px solid #FF9800; padding: 15px; border-radius: 8px;">
-            <strong>🚨 Jak odzyskać łączność bez monitora?</strong><br><br>
-            1. Włącz Hotspota tam, gdzie nie ma Twojej domowej sieci WiFi.<br>
-            2. Poczekaj cierpliwie około <strong>2 minuty</strong> (system musi "zrozumieć", że nie ma internetu).<br>
-            3. Hotspot automatycznie stworzy własną sieć WiFi!<br><br>
-            📱 <strong>Szukaj sieci (SSID):</strong> <span style="color:#FF9800; font-size:1.1em; font-weight:bold;">SQLink_WiFi_AP</span><br>
+            <strong>🚨 Jak odzyskać łączność bezprzewodowo?</strong><br><br>
+            1. Włącz Hotspota i poczekaj około <strong>2 minuty</strong> (system wykryje brak sieci).<br>
+            2. Szukaj w telefonie sieci WiFi: <span style="color:#FF9800; font-size:1.1em; font-weight:bold;">SQLink_WiFi_AP</span><br>
             🔐 <strong>Hasło:</strong> <code>sqlink123</code><br>
             🌐 <strong>Adres strony:</strong> <a href="http://192.168.4.1" target="_blank" style="color:#FF9800; font-weight:bold;">192.168.4.1</a><br><br>
-            Połącz się telefonem, wejdź na ten adres, skonfiguruj nowe WiFi w zakładce "WiFi" i zrób Restart. Gotowe!
+            Połącz się, skonfiguruj nowe WiFi w zakładce "WiFi" i zrób Restart.
         </div>
     </div>
 </div>
@@ -47,20 +45,22 @@
     <div class="help-title"><span class="help-icon">🔄</span> 3. Dwa Światy: Reflektor i EchoLink</div>
     <div class="help-text">
         Pamiętaj: Możesz być tylko w jednym miejscu naraz!
+        
         <div class="help-step">
             <strong>🅰️ Świat A: Reflektor (SQLink)</strong><br>
             To jest Twój "dom". Jesteś tu zawsze po uruchomieniu.<br>
             Rozmawiasz z polskimi stacjami na grupach (np. Ogólnopolska).
         </div>
+
         <div class="help-step" style="border-left-color: #2196F3;">
             <strong>🅱️ Świat B: EchoLink (Światowy)</strong><br>
             Chcesz pogadać z kimś z USA, Japonii czy innego miasta?<br>
-            1. Wejdź w zakładkę EchoLink.<br>
-            2. Wybierz numer węzła i kliknij <strong>📞 Połącz</strong>.<br>
-            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 10px 0;">
-            🛑 <strong>BARDZO WAŻNE:</strong> Kiedy skończysz rozmawiać, <strong>MUSISZ SIĘ ROZŁĄCZYĆ!</strong><br>
-            👉 Kliknij przycisk <span style="color:#F44336; font-weight:bold;">📵 Rozłącz (#)</span> lub wpisz <strong>#</strong> na klawiaturze radia.<br>
-            Dopiero gdy usłyszysz "Deactivating module EchoLink", wracasz do polskiej sieci.
+            1. Kliknij <strong>🚀 Aktywuj Moduł (2#)</strong> lub użyj przycisku w Configu.<br>
+            2. Wpisz numer węzła i kliknij <strong>📞 Połącz</strong>.<br>
+            <hr style="border: 0; border-top: 1px dashed #555; margin: 10px 0;">
+            🛑 <strong>WAŻNE - KONIEC ROZMOWY:</strong><br>
+            Aby wrócić do sieci SQLink, musisz wyjść z EchoLinka przyciskiem <span style="color:#F44336; font-weight:bold;">Rozłącz (#)</span>.<br>
+            <span style="color:#FF9800;">👉 Jeśli nadal jesteś w EchoLinku, naciśnij <strong>Rozłącz</strong> jeszcze raz! Musisz usłyszeć komunikat "Deactivating module EchoLink".</span>
         </div>
     </div>
 </div>
