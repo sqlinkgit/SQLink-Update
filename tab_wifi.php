@@ -16,7 +16,7 @@
                 <form method="post" style="margin:0;">
                     <input type="hidden" name="active_tab" class="active-tab-input" value="WiFi">
                     <input type="hidden" name="ssid" value="<?php echo htmlspecialchars($sw); ?>">
-                    <button type="submit" name="wifi_delete" class="btn-small-del" onclick="return confirm('Usunąć?')">X Usuń</button>
+                    <button type="submit" name="wifi_delete" class="btn-small-del" onclick="return confirm('Usunąć: <?php echo htmlspecialchars($sw); ?>?')">X Usuń</button>
                 </form>
             </td>
         </tr>
@@ -30,7 +30,7 @@
 <h3>Skanowanie</h3>
 <form method="post" style="margin-bottom: 20px;">
     <input type="hidden" name="active_tab" class="active-tab-input" value="WiFi">
-    <button type="submit" name="wifi_scan" class="btn btn-blue">Skanuj Sieci (Czekaj 5s...)</button>
+    <button type="submit" name="wifi_scan" class="btn btn-blue">Skanuj Sieci (Czekaj 5-8s)</button>
 </form>
 
 <?php if (!empty($wifi_scan_results)): ?>
@@ -46,14 +46,15 @@
     </div>
 <?php elseif (isset($_POST['wifi_scan'])): ?>
     <div class="alert alert-error" style="text-align:left; background:#200;">
-        <strong>⚠️ RAW OUTPUT:</strong>
+        <strong>⚠️ RAW OUTPUT (Co widzi karta):</strong>
         <pre style="font-size:10px;"><?php echo htmlspecialchars($raw_wifi_debug); ?></pre>
+        <small>Jeśli tutaj jest tylko Twoja sieć, to znaczy, że chip XR819 nie potrafi skanować podczas nadawania AP.</small>
     </div>
 <?php endif; ?>
 
 <form method="post" style="margin-top:10px;">
     <input type="hidden" name="active_tab" class="active-tab-input" value="WiFi">
-    <input type="text" id="wifi-ssid" name="ssid" placeholder="SSID ręcznie">
+    <input type="text" id="wifi-ssid" name="ssid" placeholder="SSID (Wpisz ręcznie)">
     <input type="password" name="pass" placeholder="Hasło" style="margin-top:5px;">
     <button type="submit" name="wifi_connect" class="btn btn-green">Połącz</button>
 </form>

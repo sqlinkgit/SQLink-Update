@@ -49,14 +49,16 @@
     ];
     $vals_el = ['Callsign' => $el['CALLSIGN'] ?? $vals['Callsign'], 'Password' => $el['PASSWORD'] ?? ''];
 
-    // --- 4. WIFI SCAN LOGIC (NAPRAWIONA) ---
+    // --- 4. WIFI SCAN LOGIC (ULTIMATE OPI ZERO FIX) ---
     $wifi_scan_results = [];
     $raw_wifi_debug = ""; 
 
     if (isset($_POST['wifi_scan'])) {
-        // Dodajemy opóźnienie 2 sekundy przed odczytem, aby karta zdążyła
-        shell_exec("sudo nmcli dev wifi rescan"); // Trigger scan
-        sleep(3); // Czekaj na radio
+        // Blokujące skanowanie z długim czasem dla XR819
+        // Używamy --get-values dla czystego wyjścia SSID:SIGNAL:SECURITY
+        shell_exec("sudo nmcli device wifi rescan"); // Wymuś odświeżenie
+        sleep(5); // Daj czas karcie na zebranie danych (XR819 jest wolna)
+        
         $cmd = "sudo nmcli --get-values SSID,SIGNAL,SECURITY device wifi list 2>&1";
         $raw_wifi_debug = shell_exec($cmd);
 
@@ -68,16 +70,26 @@
                 $line = trim($line);
                 if (empty($line)) continue;
                 
+                // Rozbijamy: SSID:SIGNAL:SECURITY
                 $parts = explode(':', $line);
+                
+                // Musimy mieć co najmniej SSID, Sygnał, Security (3 części)
+                // Ale SSID może zawierać ':', więc liczymy od końca
                 if (count($parts) >= 3) {
                     $sec = array_pop($parts);   
                     $sig = array_pop($parts);   
-                    $ssid = implode(':', $parts); 
+                    $ssid = implode(':', $parts); // Scalamy resztę w SSID
+                    
+                    $ssid = trim($ssid);
                     
                     if (empty($ssid) || $ssid == "--") continue;
                     
-                    // TERAZ POKAZUJEMY WSZYSTKO (nawet własny AP), żebyś widział że działa
-                    // if ($ssid == "SQLink_WiFi_AP") continue; 
+                    // FILTRACJA - BEZWZGLĘDNA
+                    if ($ssid === "SQLink_WiFi_AP") continue;
+                    if ($ssid === "Rescue_AP") continue;
+                    
+                    // Jeśli sygnał to 0, a to nie my, to często błąd odczytu, ale pokażmy go
+                    // XR819 często pokazuje 0 dla własnego AP
 
                     if (!isset($unique_ssids[$ssid]) || $unique_ssids[$ssid]['signal'] < $sig) {
                         $unique_ssids[$ssid] = ['ssid' => $ssid, 'signal' => $sig, 'sec' => $sec];
@@ -97,13 +109,35 @@
         shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &');
     }
     
+    // --- OBSŁUGA AKTUALIZACJI (NAPRAWIONA) ---
+    $update_html = "";
     if (isset($_POST['git_update'])) {
         $out = shell_exec("sudo /usr/local/bin/update_dashboard.sh 2>&1");
+        
         if (strpos($out, 'STATUS: SUCCESS') !== false) {
+             // Jeśli sukces -> przygotuj HTML z licznikiem i restartem
              shell_exec('sudo /usr/sbin/reboot > /dev/null 2>&1 &');
-             echo "<div class='alert alert-success'>Aktualizacja OK. Restart...</div>";
+             $update_html = "
+             <div id='update-overlay' style='position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;'>
+                <h1 style='color:#4CAF50; font-size:30px;'>✅ AKTUALIZACJA ZAKOŃCZONA!</h1>
+                <p style='color:#fff; font-size:18px;'>System restartuje się...</p>
+                <div style='font-size:50px; color:#2196F3; font-weight:bold; margin:20px;' id='cnt'>15</div>
+                <div style='text-align:left; background:#111; padding:10px; border:1px solid #333; max-width:80%; max-height:300px; overflow:auto; color:#ccc; font-family:monospace;'>
+                    $out
+                </div>
+                <script>
+                    var sec = 15;
+                    setInterval(function(){
+                        sec--;
+                        document.getElementById('cnt').innerText = sec;
+                        if(sec <= 0) window.location.href = '/';
+                    }, 1000);
+                </script>
+             </div>";
+        } elseif (strpos($out, 'STATUS: UP_TO_DATE') !== false) {
+             $update_html = "<div class='alert alert-warning'>⚠️ <strong>SYSTEM JEST AKTUALNY</strong><br>Brak nowych zmian.</div>";
         } else {
-             echo "<div class='alert alert-error'>Błąd aktualizacji: $out</div>";
+             $update_html = "<div class='alert alert-error'>❌ <strong>BŁĄD AKTUALIZACJI</strong><pre>$out</pre></div>";
         }
     }
 
@@ -136,6 +170,8 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
+<?php if(!empty($update_html)) echo $update_html; ?>
+
 <div class="container">
     <header>
         <div style="position: relative; display: flex; justify-content: center; align-items: center; min-height: 100px;">
@@ -148,25 +184,25 @@
 
     <div class="tabs">
         <button id="btn-Dashboard" class="tab-btn active" onclick="openTab(event, 'Dashboard')">Dashboard</button>
-        <button id="btn-Nodes" class="tab-btn" onclick="openTab(event, 'Nodes')">Nodes</button>
-        <button id="btn-DTMF" class="tab-btn" onclick="openTab(event, 'DTMF')">DTMF</button>
-        <button id="btn-Radio" class="tab-btn" onclick="openTab(event, 'Radio')">Radio</button>
-        <button id="btn-Audio" class="tab-btn" onclick="openTab(event, 'Audio')">Audio</button>
-        <button id="btn-SvxConfig" class="tab-btn" onclick="openTab(event, 'SvxConfig')">Config</button>
         <button id="btn-WiFi" class="tab-btn" onclick="openTab(event, 'WiFi')">WiFi</button>
+        <button id="btn-Config" class="tab-btn" onclick="openTab(event, 'SvxConfig')">Config</button>
+        <button id="btn-Audio" class="tab-btn" onclick="openTab(event, 'Audio')">Audio</button>
+        <button id="btn-Radio" class="tab-btn" onclick="openTab(event, 'Radio')">Radio</button>
+        <button id="btn-DTMF" class="tab-btn" onclick="openTab(event, 'DTMF')">DTMF</button>
         <button id="btn-Power" class="tab-btn" onclick="openTab(event, 'Power')">Zasilanie</button>
-        <button id="btn-Logs" class="tab-btn" onclick="openTab(event, 'Logs')">Logi</button>
+        <button id="btn-Nodes" class="tab-btn" onclick="openTab(event, 'Nodes')">Nodes</button>
         <button id="btn-Help" class="tab-btn" onclick="openTab(event, 'Help')">Pomoc</button>
+        <button id="btn-Logs" class="tab-btn" onclick="openTab(event, 'Logs')">Logi</button>
     </div>
 
     <div id="Dashboard" class="tab-content active"><?php include 'tab_dashboard.php'; ?></div>
     <div id="WiFi" class="tab-content"><?php include 'tab_wifi.php'; ?></div>
-    <div id="DTMF" class="tab-content"><?php include 'tab_dtmf.php'; ?></div>
+    <div id="SvxConfig" class="tab-content"><?php include 'tab_config.php'; ?></div>
     <div id="Audio" class="tab-content"><?php include 'tab_audio.php'; ?></div>
     <div id="Radio" class="tab-content"><?php include 'tab_radio.php'; ?></div>
-    <div id="SvxConfig" class="tab-content"><?php include 'tab_config.php'; ?></div>
-    <div id="Nodes" class="tab-content"><?php include 'tab_nodes.php'; ?></div>
+    <div id="DTMF" class="tab-content"><?php include 'tab_dtmf.php'; ?></div>
     <div id="Power" class="tab-content"><?php include 'tab_power.php'; ?></div>
+    <div id="Nodes" class="tab-content"><?php include 'tab_nodes.php'; ?></div>
     <div id="Help" class="tab-content"><?php include 'help.php'; ?></div>
     <div id="Logs" class="tab-content"><div id="log-content" class="log-box">...</div></div>
 </div>
