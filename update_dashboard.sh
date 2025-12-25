@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# URL REPOZYTORIUM ORANGE PI
 GIT_URL="https://github.com/sqlinkgit/SQLink-Update.git"
 GIT_DIR="/root/SQLink-Update"
 WWW_DIR="/var/www/html"
@@ -10,6 +9,31 @@ date
 
 OLD_HASH=""
 NEW_HASH=""
+
+
+echo "Sprawdzanie i naprawa zależności systemowych..."
+
+
+if ! dpkg -l | grep -q dnsmasq-base; then
+    apt-get update
+    apt-get install -y dnsmasq-base dnsmasq
+fi
+
+
+systemctl stop dnsmasq 2>/dev/null
+systemctl disable dnsmasq 2>/dev/null
+
+
+NM_CONF="/etc/NetworkManager/NetworkManager.conf"
+if [ -f "$NM_CONF" ]; then
+    if ! grep -q "dns=dnsmasq" "$NM_CONF"; then
+        
+        sed -i '/\[main\]/a dns=dnsmasq' "$NM_CONF"
+        echo "Zaktualizowano konfigurację NetworkManager (dns=dnsmasq)"
+        systemctl restart NetworkManager
+    fi
+fi
+# ------------------------------------------
 
 if [ ! -d "$GIT_DIR" ]; then
     cd /root
@@ -29,7 +53,7 @@ fi
 SCRIPT_PATH="/usr/local/bin/update_dashboard.sh"
 REPO_SCRIPT="$GIT_DIR/update_dashboard.sh"
 
-# Auto-aktualizacja instalatora
+
 if [ -f "$SCRIPT_PATH" ] && [ -f "$REPO_SCRIPT" ]; then
     if ! cmp -s "$REPO_SCRIPT" "$SCRIPT_PATH"; then
         cp "$REPO_SCRIPT" "$SCRIPT_PATH"
@@ -40,7 +64,7 @@ if [ -f "$SCRIPT_PATH" ] && [ -f "$REPO_SCRIPT" ]; then
     fi
 fi
 
-# Kopiowanie plików WWW
+
 cp $GIT_DIR/*.css $WWW_DIR/ 2>/dev/null
 cp $GIT_DIR/*.js $WWW_DIR/ 2>/dev/null
 cp $GIT_DIR/*.png $WWW_DIR/ 2>/dev/null
@@ -63,19 +87,19 @@ for script in $GIT_DIR/*.sh; do
     fi
 done
 
-# === INSTALACJA STRAŻNIKA JAKO USŁUGA SYSTEMD (PROFESJONALNA METODA) ===
 
-# 1. Kopiujemy skrypt
+
+
 if [ -f "$GIT_DIR/wifi_guard.sh" ]; then
     cp "$GIT_DIR/wifi_guard.sh" /usr/local/bin/wifi_guard.sh
     chmod +x /usr/local/bin/wifi_guard.sh
 fi
 
-# 2. Czyścimy stare metody (Cron i RC.local) - żeby nie dublować
+
 crontab -l 2>/dev/null | grep -v "wifi_guard.sh" | grep -v "wifi_guardian.sh" | crontab -
 sed -i '/wifi_guard.sh/d' /etc/rc.local
 
-# 3. Tworzymy plik usługi .service
+
 cat <<EOF > /etc/systemd/system/wifi_guard.service
 [Unit]
 Description=SQLink WiFi Guardian
@@ -93,10 +117,11 @@ User=root
 WantedBy=multi-user.target
 EOF
 
-# 4. Aktywujemy usługę
+
 systemctl daemon-reload
 systemctl enable wifi_guard.service
-systemctl start wifi_guard.service
+
+systemctl restart wifi_guard.service
 
 echo "Zainstalowano usługę: wifi_guard.service"
 # =======================================================================

@@ -1,85 +1,74 @@
 #!/bin/bash
 
-# Ustawiamy plik logu
+
 LOG_FILE="/var/log/wifi_guard.log"
 exec > >(tee -a $LOG_FILE) 2>&1
 
 echo "----------------------------------------"
-echo "$(date): [START] Strażnik WiFi (v12 - Auto-Cleanup)"
+echo "$(date): [START] Strażnik WiFi (v16 - Universal Secure)"
 echo "$(date): Czekam 50 sekund na start systemu..."
-
 sleep 50
 
-# --- KROK 1: SPRAWDZENIE KABLA (ETHERNET) ---
-ETH_STATUS=$(nmcli -t -f GENERAL.STATE device show eth0 2>/dev/null)
 
-# Sprawdzamy czy kabel ma status 100 (connected)
-if echo "$ETH_STATUS" | grep -q ":100"; then
-    echo "$(date): [OK] Kabel podłączony (Internet działa)."
+if grep -q "1" /sys/class/net/eth0/carrier 2>/dev/null; then
+    echo "$(date): [OK] Kabel podłączony. Internet jest."
     
-    # NOWOŚĆ: Sprzątanie! Jeśli mamy kabel, a AP wisi w tle - kasujemy go.
+
     if nmcli connection show "Rescue_AP" >/dev/null 2>&1; then
-        echo "$(date): Wykryto zbędny Hotspot Ratunkowy. Wyłączam go..."
-        nmcli connection delete "Rescue_AP" >/dev/null 2>&1
-        echo "$(date): Hotspot wyłączony."
+        nmcli connection delete "Rescue_AP"
     fi
-    
     exit 0
 fi
 
-# --- KROK 2: SPRAWDZENIE CZY JESTEŚMY POŁĄCZENI Z WIFI DOMOWYM ---
-WIFI_STATUS=$(nmcli -t -f GENERAL.STATE device show wlan0 2>/dev/null)
-if echo "$WIFI_STATUS" | grep -q ":100"; then
-    echo "$(date): [OK] WiFi połączone z routerem. Koniec."
+echo "$(date): [INFO] Brak kabla. Sprawdzam status WiFi..."
+
+
+WIFI_STATE=$(nmcli -t -f GENERAL.STATE device show wlan0 2>/dev/null)
+
+if echo "$WIFI_STATE" | grep -q ":100"; then
+    echo "$(date): [OK] WiFi jest połączone z siecią użytkownika."
     exit 0
 fi
 
-echo "$(date): [ALARM] Brak sieci! Uruchamiam OTWARTY Hotspot Ratunkowy..."
 
-# --- KROK 3: START PROCEDURY RATUNKOWEJ ---
-echo "$(date): Resetuję radio..."
+echo "$(date): [ALARM] Brak połączenia z żadną znaną siecią. Uruchamiam Hotspot."
+
+echo "$(date): Reset sterownika WiFi (Brutal Force)..."
+
 systemctl stop NetworkManager
-rmmod xradio_wlan
+killall wpa_supplicant 2>/dev/null
 sleep 1
-modprobe xradio_wlan
+rmmod xradio_wlan
 sleep 2
-systemctl start NetworkManager
-sleep 10
-nmcli radio wifi on
+modprobe xradio_wlan
 sleep 3
-
-# --- KROK 4: KONFIGURACJA AP (BEZ HASŁA) ---
-echo "$(date): Tworzę profil Rescue_AP..."
+systemctl start NetworkManager
+sleep 8
+nmcli radio wifi on
+sleep 2
 
 nmcli connection delete "Rescue_AP" >/dev/null 2>&1
 
-# Tworzymy sieć otwartą
-nmcli con add type wifi ifname wlan0 mode ap con-name "Rescue_AP" ssid "SQLink_Ratunkowy" autoconnect yes
+echo "$(date): Tworzę sieć SQLink_WiFi_AP..."
 
-# Stabilność (BG / Kanał 6 / Stały MAC)
-nmcli con modify "Rescue_AP" 802-11-wireless.band bg
-nmcli con modify "Rescue_AP" 802-11-wireless.channel 6
-nmcli con modify "Rescue_AP" wifi.cloned-mac-address preserve
+nmcli con add type wifi ifname wlan0 mode ap con-name "Rescue_AP" ssid "SQLink_WiFi_AP" autoconnect yes
+nmcli con modify "Rescue_AP" wifi-sec.key-mgmt wpa-psk
+nmcli con modify "Rescue_AP" wifi-sec.psk "sqlink123"
 
-# IP i DHCP
 nmcli con modify "Rescue_AP" ipv4.addresses 192.168.4.1/24
+nmcli con modify "Rescue_AP" ipv4.gateway 192.168.4.1
 nmcli con modify "Rescue_AP" ipv4.method shared
-
-# Wyłączamy oszczędzanie energii
+nmcli con modify "Rescue_AP" 802-11-wireless.band bg
+nmcli con modify "Rescue_AP" 802-11-wireless.channel 1
 iw dev wlan0 set power_save off
 
-sleep 2
-
-# --- KROK 5: PODNOSZENIE SIECI ---
-echo "$(date): Uruchamiam Hotspot..."
+echo "$(date): Podnoszę Hotspot..."
 nmcli connection up "Rescue_AP"
 
-RESULT=$?
-if [ $RESULT -eq 0 ]; then
-    echo "$(date): [SUKCES] Otwarty Hotspot aktywny."
-    echo "$(date): SSID: SQLink_Ratunkowy"
+if [ $? -eq 0 ]; then
+    echo "$(date): [SUKCES] Hotspot działa. SSID: SQLink_WiFi_AP IP: 192.168.4.1"
 else
-    echo "$(date): [BŁĄD] Kod błędu: $RESULT"
+    echo "$(date): [BŁĄD] Nie udało się uruchomić Hotspotu."
     ifconfig wlan0 192.168.4.1 netmask 255.255.255.0 up
 fi
 
