@@ -49,13 +49,14 @@
     ];
     $vals_el = ['Callsign' => $el['CALLSIGN'] ?? $vals['Callsign'], 'Password' => $el['PASSWORD'] ?? ''];
 
-    // --- 4. WIFI SCAN LOGIC (NAPRAWIONA - BLOKUJĄCA) ---
+    // --- 4. WIFI SCAN LOGIC (NAPRAWIONA) ---
     $wifi_scan_results = [];
-    $raw_wifi_debug = ""; // Zmienna do debugowania
+    $raw_wifi_debug = ""; 
 
     if (isset($_POST['wifi_scan'])) {
-        // Uruchamiamy skanowanie BEZ tła (&), PHP musi poczekać na wynik.
-        // Używamy --get-values dla czystszego wyjścia
+        // Dodajemy opóźnienie 2 sekundy przed odczytem, aby karta zdążyła
+        shell_exec("sudo nmcli dev wifi rescan"); // Trigger scan
+        sleep(3); // Czekaj na radio
         $cmd = "sudo nmcli --get-values SSID,SIGNAL,SECURITY device wifi list 2>&1";
         $raw_wifi_debug = shell_exec($cmd);
 
@@ -67,19 +68,17 @@
                 $line = trim($line);
                 if (empty($line)) continue;
                 
-                // Format nmcli --get-values: SSID:SIGNAL:SECURITY
-                // Uwaga: SSID może zawierać dwukropki, więc dzielimy ostrożnie
                 $parts = explode(':', $line);
-                if (count($parts) >= 2) {
-                    $sec = array_pop($parts);   // Ostatni to Security
-                    $sig = array_pop($parts);   // Przedostatni to Signal
-                    $ssid = implode(':', $parts); // Reszta to SSID
+                if (count($parts) >= 3) {
+                    $sec = array_pop($parts);   
+                    $sig = array_pop($parts);   
+                    $ssid = implode(':', $parts); 
                     
                     if (empty($ssid) || $ssid == "--") continue;
-                    if ($ssid == "SQLink_WiFi_AP") continue;
-                    if ($ssid == "Rescue_AP") continue;
+                    
+                    // TERAZ POKAZUJEMY WSZYSTKO (nawet własny AP), żebyś widział że działa
+                    // if ($ssid == "SQLink_WiFi_AP") continue; 
 
-                    // Unikalność i siła sygnału
                     if (!isset($unique_ssids[$ssid]) || $unique_ssids[$ssid]['signal'] < $sig) {
                         $unique_ssids[$ssid] = ['ssid' => $ssid, 'signal' => $sig, 'sec' => $sec];
                     }
@@ -91,7 +90,23 @@
     }
 
     // --- AKCJE SYSTEMOWE ---
-    if (isset($_POST['save_svx_full'])) { /* ... (bez zmian dla czytelności) ... */ }
+    if (isset($_POST['save_svx_full'])) { 
+        $newData = $_POST; unset($newData['save_svx_full'], $newData['active_tab']); 
+        file_put_contents('/tmp/svx_new_settings.json', json_encode($newData));
+        shell_exec('sudo /usr/bin/python3 /usr/local/bin/update_svx_full.py 2>&1'); 
+        shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &');
+    }
+    
+    if (isset($_POST['git_update'])) {
+        $out = shell_exec("sudo /usr/local/bin/update_dashboard.sh 2>&1");
+        if (strpos($out, 'STATUS: SUCCESS') !== false) {
+             shell_exec('sudo /usr/sbin/reboot > /dev/null 2>&1 &');
+             echo "<div class='alert alert-success'>Aktualizacja OK. Restart...</div>";
+        } else {
+             echo "<div class='alert alert-error'>Błąd aktualizacji: $out</div>";
+        }
+    }
+
     if (isset($_POST['wifi_connect'])) {
         $ssid = $_POST['ssid']; $pass = $_POST['pass'];
         shell_exec("sudo nmcli dev wifi connect " . escapeshellarg($ssid) . " password " . escapeshellarg($pass) . " > /dev/null 2>&1 &");
@@ -133,14 +148,28 @@
 
     <div class="tabs">
         <button id="btn-Dashboard" class="tab-btn active" onclick="openTab(event, 'Dashboard')">Dashboard</button>
+        <button id="btn-Nodes" class="tab-btn" onclick="openTab(event, 'Nodes')">Nodes</button>
+        <button id="btn-DTMF" class="tab-btn" onclick="openTab(event, 'DTMF')">DTMF</button>
+        <button id="btn-Radio" class="tab-btn" onclick="openTab(event, 'Radio')">Radio</button>
+        <button id="btn-Audio" class="tab-btn" onclick="openTab(event, 'Audio')">Audio</button>
+        <button id="btn-SvxConfig" class="tab-btn" onclick="openTab(event, 'SvxConfig')">Config</button>
         <button id="btn-WiFi" class="tab-btn" onclick="openTab(event, 'WiFi')">WiFi</button>
-        <button id="btn-Config" class="tab-btn" onclick="openTab(event, 'SvxConfig')">Config</button>
-        </div>
+        <button id="btn-Power" class="tab-btn" onclick="openTab(event, 'Power')">Zasilanie</button>
+        <button id="btn-Logs" class="tab-btn" onclick="openTab(event, 'Logs')">Logi</button>
+        <button id="btn-Help" class="tab-btn" onclick="openTab(event, 'Help')">Pomoc</button>
+    </div>
 
     <div id="Dashboard" class="tab-content active"><?php include 'tab_dashboard.php'; ?></div>
     <div id="WiFi" class="tab-content"><?php include 'tab_wifi.php'; ?></div>
+    <div id="DTMF" class="tab-content"><?php include 'tab_dtmf.php'; ?></div>
+    <div id="Audio" class="tab-content"><?php include 'tab_audio.php'; ?></div>
+    <div id="Radio" class="tab-content"><?php include 'tab_radio.php'; ?></div>
     <div id="SvxConfig" class="tab-content"><?php include 'tab_config.php'; ?></div>
-    </div>
+    <div id="Nodes" class="tab-content"><?php include 'tab_nodes.php'; ?></div>
+    <div id="Power" class="tab-content"><?php include 'tab_power.php'; ?></div>
+    <div id="Help" class="tab-content"><?php include 'help.php'; ?></div>
+    <div id="Logs" class="tab-content"><div id="log-content" class="log-box">...</div></div>
+</div>
 <script>const GLOBAL_CALLSIGN = "<?php echo $vals['Callsign']; ?>";</script>
 <script src="script.js?v=<?php echo time(); ?>"></script>
 </body>

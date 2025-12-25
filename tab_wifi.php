@@ -16,7 +16,7 @@
                 <form method="post" style="margin:0;">
                     <input type="hidden" name="active_tab" class="active-tab-input" value="WiFi">
                     <input type="hidden" name="ssid" value="<?php echo htmlspecialchars($sw); ?>">
-                    <button type="submit" name="wifi_delete" class="btn-small-del" onclick="return confirm('Usunąć: <?php echo htmlspecialchars($sw); ?>?')">X Usuń</button>
+                    <button type="submit" name="wifi_delete" class="btn-small-del" onclick="return confirm('Usunąć?')">X Usuń</button>
                 </form>
             </td>
         </tr>
@@ -24,14 +24,13 @@
     </tbody>
 </table>
 <?php else: ?>
-<p style="color:#888; font-style:italic;">Brak zapamiętanych sieci.</p>
+<p style="color:#888;">Brak zapamiętanych sieci.</p>
 <?php endif; ?>
 
 <h3>Skanowanie</h3>
 <form method="post" style="margin-bottom: 20px;">
     <input type="hidden" name="active_tab" class="active-tab-input" value="WiFi">
-    <button type="submit" name="wifi_scan" class="btn btn-blue">Skanuj Sieci</button>
-    <small style="display:block; margin-top:5px; color:#666;">Uwaga: Skanowanie może potrwać do 10 sekund.</small>
+    <button type="submit" name="wifi_scan" class="btn btn-blue">Skanuj Sieci (Czekaj 5s...)</button>
 </form>
 
 <?php if (!empty($wifi_scan_results)): ?>
@@ -46,15 +45,15 @@
         </tbody></table>
     </div>
 <?php elseif (isset($_POST['wifi_scan'])): ?>
-    <div class="alert alert-error" style="text-align:left; margin-top:10px; background:#220; border:1px solid #550; color:#fff;">
-        <strong>⚠️ Wynik skanowania (RAW OUTPUT):</strong>
-        <pre style="font-size:11px; background:#000; padding:10px; margin-top:5px; white-space:pre-wrap; border:1px solid #444; color:#0f0;"><?php echo empty($raw_wifi_debug) ? "[PUSTY WYNIK - KARTA NIE ODPOWIADA]" : htmlspecialchars($raw_wifi_debug); ?></pre>
+    <div class="alert alert-error" style="text-align:left; background:#200;">
+        <strong>⚠️ RAW OUTPUT:</strong>
+        <pre style="font-size:10px;"><?php echo htmlspecialchars($raw_wifi_debug); ?></pre>
     </div>
 <?php endif; ?>
 
 <form method="post" style="margin-top:10px;">
     <input type="hidden" name="active_tab" class="active-tab-input" value="WiFi">
-    <input type="text" id="wifi-ssid" name="ssid" placeholder="SSID (Wpisz ręcznie jeśli brak)">
+    <input type="text" id="wifi-ssid" name="ssid" placeholder="SSID ręcznie">
     <input type="password" name="pass" placeholder="Hasło" style="margin-top:5px;">
     <button type="submit" name="wifi_connect" class="btn btn-green">Połącz</button>
 </form>
