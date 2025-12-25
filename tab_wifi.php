@@ -37,4 +37,3 @@
 <?php endif; ?>
 
 <form method="post" style="margin-top:10px;"><input type="hidden" name="active_tab" class="active-tab-input" value="WiFi"><input type="text" id="wifi-ssid" name="ssid" placeholder="SSID"><input type="password" name="pass" placeholder="Hasło" style="margin-top:5px;"><button type="submit" name="wifi_connect" class="btn btn-green">Połącz</button></form>
-// Restore Stable Version

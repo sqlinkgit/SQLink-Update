@@ -1,16 +1,16 @@
 <?php
-    
+    // --- 1. API TELEMETRII ---
     if (isset($_GET['ajax_stats'])) {
         header('Content-Type: application/json');
         $stats = [];
 
-        
+        // Hardware & Temp
         $model = @file_get_contents('/sys/firmware/devicetree/base/model');
         $stats['hw'] = $model ? str_replace("\0", "", trim($model)) : "Generic Linux";
         $temp_raw = @file_get_contents('/sys/class/thermal/thermal_zone0/temp');
         $stats['temp'] = $temp_raw ? round($temp_raw / 1000, 1) : 0;
 
-        
+        // RAM & Disk
         $free = shell_exec('free -m');
         $free_arr = explode("\n", (string)trim($free));
         $mem = preg_split("/\s+/", $free_arr[1]);
@@ -19,7 +19,7 @@
         $df = disk_free_space('/');
         $stats['disk_percent'] = round((($dt - $df) / $dt) * 100, 1);
 
-        
+        // NETWORK INFO
         $ip = trim(shell_exec("hostname -I | awk '{print $1}'"));
         $stats['ip'] = empty($ip) ? "Brak IP" : $ip;
         $ssid = trim(shell_exec("iwgetid -r"));
@@ -38,7 +38,7 @@
         exit;
     }
 
-    
+    // --- 2. OBSŁUGA DTMF ---
     if (isset($_POST['ajax_dtmf'])) {
         $code = $_POST['ajax_dtmf'];
         if (preg_match('/^[0-9A-D*#]+$/', $code)) {
@@ -48,7 +48,7 @@
         exit;
     }
 
-    
+    // --- KONFIGURACJA AUDIO I RADIO ---
     $MIXER_IDS = [
         'ADC_Gain' => 9, 'Mic1_Boost' => 8, 'Mic2_Boost' => 6,
         'Mic1_Cap_Sw' => 18, 'Mic2_Cap_Sw' => 19, 'LineIn_Cap_Sw' => 17, 'Mixer_Cap_Sw' => 15, 'Mixer_Rev_Cap_Sw' => 16,
@@ -79,7 +79,7 @@
         "2257" => "225.7 Hz", "2336" => "233.6 Hz", "2418" => "241.8 Hz", "2503" => "250.3 Hz"
     ];
 
-    
+    // --- LOGIKA FORMULARZY ---
     if (isset($_POST['reset_audio_defaults'])) {
         $output = shell_exec("sudo /usr/local/bin/reset_audio.sh 2>&1");
         $audio_msg = "<div class='alert alert-warning' style='border-color: #FF9800; color: #FF9800;'><strong>⚠️ Reset Audio:</strong><pre style='text-align:left; font-size:11px;'>$output</pre></div>";
@@ -93,7 +93,7 @@
 
     $audio = []; foreach ($MIXER_IDS as $name => $id) $audio[$name] = get_amixer_val($id, 0);
 
-    
+    // --- PARSOWANIE CONFIGU ---
     function parse_svx_conf($file) {
         $ini = []; $curr = "GLOBAL";
         if (!file_exists($file)) return [];
@@ -125,7 +125,7 @@
     $radio = ["rx" => "432.8500", "tx" => "432.8500", "ctcss" => "0000", "sq" => "2"];
     if (file_exists($jsonFile)) { $loaded = json_decode(file_get_contents($jsonFile), true); if ($loaded) $radio = array_merge($radio, $loaded); }
 
-    
+    // --- AKCJE SYSTEMOWE ---
     if (isset($_POST['save_svx_full'])) {
         $newData = $_POST; unset($newData['save_svx_full'], $newData['active_tab']); file_put_contents('/tmp/svx_new_settings.json', json_encode($newData));
         shell_exec('sudo /usr/bin/python3 /usr/local/bin/update_svx_full.py 2>&1'); shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &');
@@ -160,18 +160,18 @@
         echo "<div class='alert alert-success'>Radio (Simplex): $out</div>";
     }
 
-    
+    // ZASILANIE
     if (isset($_POST['restart_srv'])) { shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &'); echo "<div class='alert alert-success'>Restart Usługi...</div>"; }
     if (isset($_POST['reboot_device'])) { shell_exec('sudo /usr/sbin/reboot > /dev/null 2>&1 &'); echo "<div class='alert alert-warning'>🔄 Reboot...</div>"; }
     if (isset($_POST['shutdown_device'])) { shell_exec('sudo /usr/sbin/shutdown -h now > /dev/null 2>&1 &'); echo "<div class='alert alert-error'>🛑 Shutdown...</div>"; }
     if (isset($_POST['auto_proxy'])) { $out = shell_exec("sudo /usr/local/bin/proxy_hunter.py 2>&1"); echo "<div class='alert alert-warning'><strong>♻️ Auto-Proxy:</strong><br><small>$out</small></div><meta http-equiv='refresh' content='3'>"; }
     
-    
+    // --- SMART UPDATE (Dla Orange Pi) ---
     if (isset($_POST['git_update'])) {
         $out = shell_exec("sudo /usr/local/bin/update_dashboard.sh 2>&1");
         
         if (strpos($out, 'STATUS: SUCCESS') !== false) {
-            
+            // Sukces -> Restart
             shell_exec('sudo /usr/sbin/reboot > /dev/null 2>&1 &');
             echo "
             <div class='alert alert-success' style='text-align:left;'>
@@ -189,7 +189,7 @@
             </script>
             ";
         } elseif (strpos($out, 'STATUS: UP_TO_DATE') !== false) {
-             
+             // Brak zmian -> Info
              echo "
              <div class='alert alert-warning' style='text-align:left;'>
                 <strong>⚠️ SYSTEM JEST JUŻ AKTUALNY</strong><br>
@@ -197,7 +197,7 @@
                 <pre style='font-size:10px; margin-top:5px; background:#222; padding:5px; border-radius:3px;'>$out</pre>
              </div><meta http-equiv='refresh' content='4'>";
         } else {
-            
+            // Błąd
             echo "
             <div class='alert alert-error' style='text-align:left;'>
                 <strong>❌ BŁĄD AKTUALIZACJI!</strong><br>
@@ -210,6 +210,7 @@
     $wifi_output = "";
     if (isset($_POST['wifi_scan'])) { shell_exec('sudo nmcli dev wifi rescan'); $raw = shell_exec('sudo nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list 2>&1'); $lines = explode("\n", $raw); foreach($lines as $line) { if(empty($line)) continue; $parts = explode(':', $line); $sec = array_pop($parts); $sig = array_pop($parts); $ssid = implode(':', $parts); if(!empty($ssid)) $wifi_scan_results[$ssid] = ['ssid'=>$ssid, 'signal'=>$sig, 'sec'=>$sec]; } usort($wifi_scan_results, function($a, $b) { return $b['signal'] - $a['signal']; }); }
 
+    // Lista zapamiętanych sieci WiFi
     $saved_wifi_list = [];
     $saved_raw = shell_exec("sudo nmcli -t -f NAME,TYPE connection show | grep '802-11-wireless'");
     if($saved_raw) {
