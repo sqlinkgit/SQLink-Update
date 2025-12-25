@@ -71,6 +71,23 @@ for script in $GIT_DIR/*.sh; do
     fi
 done
 
+# === INSTALACJA MECHANIZMU RATUNKOWEGO WIFI (CRON) ===
+GUARDIAN_SCRIPT="/usr/local/bin/wifi_guardian.sh"
+
+if [ -f "$GIT_DIR/wifi_guardian.sh" ]; then
+    cp "$GIT_DIR/wifi_guardian.sh" "$GUARDIAN_SCRIPT"
+    chmod +x "$GUARDIAN_SCRIPT"
+    
+    # Sprawdzamy czy juz jest w cronie, jak nie to dodajemy
+    crontab -l | grep -q "wifi_guardian.sh"
+    if [ $? -ne 0 ]; then
+        echo "Dodawanie WiFi Guardian do CRON..."
+        (crontab -l 2>/dev/null; echo "* * * * * $GUARDIAN_SCRIPT >/dev/null 2>&1") | crontab -
+    fi
+    echo "WiFi Guardian zainstalowany."
+fi
+# ======================================================
+
 chown -R www-data:www-data $WWW_DIR
 chmod -R 755 $WWW_DIR
 
