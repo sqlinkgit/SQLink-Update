@@ -166,7 +166,7 @@
 
     $wifi_output = "";
     if (isset($_POST['wifi_scan'])) {
-        $raw = shell_exec('sudo nmcli -t -f SSID,SIGNAL,SECURITY device wifi list --rescan yes 2>&1');
+        $raw = shell_exec('sudo nmcli -t -f SSID,SIGNAL,SECURITY device wifi list 2>&1');
         $lines = explode("\n", $raw);
         $unique_ssids = [];
         
@@ -180,7 +180,7 @@
             $ssid = implode(':', $parts);
             
             if(empty($ssid)) continue;
-            if($ssid == "SQLink_WiFi_AP") continue; 
+            if($ssid == "SQLink_WiFi_AP") continue;
             if($ssid == "--") continue;
 
             if(!isset($unique_ssids[$ssid]) || $unique_ssids[$ssid]['signal'] < $sig) {
