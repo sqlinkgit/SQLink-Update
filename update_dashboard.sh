@@ -1,6 +1,7 @@
 #!/bin/bash
 
-GIT_URL="https://github.com/SQLinkgit/SQLink-Update.git"
+# URL REPOZYTORIUM ORANGE PI
+GIT_URL="https://github.com/sqlinkgit/SQLink-Update.git"
 GIT_DIR="/root/SQLink-Update"
 WWW_DIR="/var/www/html"
 
@@ -17,29 +18,20 @@ if [ ! -d "$GIT_DIR" ]; then
 else
     cd $GIT_DIR
     git config core.fileMode false
-    
     OLD_HASH=$(git rev-parse HEAD)
-    
     git fetch --all
     git reset --hard origin/main
-    
     NEW_HASH=$(git rev-parse HEAD)
     
-    echo "Old Hash: $OLD_HASH"
-    echo "New Hash: $NEW_HASH"
-    
-    if [ $? -ne 0 ]; then 
-        echo "STATUS: FAILURE"; 
-        exit 1; 
-    fi
+    if [ $? -ne 0 ]; then echo "STATUS: FAILURE"; exit 1; fi
 fi
 
 SCRIPT_PATH="/usr/local/bin/update_dashboard.sh"
 REPO_SCRIPT="$GIT_DIR/update_dashboard.sh"
 
+# Auto-aktualizacja instalatora
 if [ -f "$SCRIPT_PATH" ] && [ -f "$REPO_SCRIPT" ]; then
     if ! cmp -s "$REPO_SCRIPT" "$SCRIPT_PATH"; then
-        echo "Aktualizowanie instalatora..."
         cp "$REPO_SCRIPT" "$SCRIPT_PATH"
         chmod +x "$SCRIPT_PATH"
         export SELF_UPDATED=1
@@ -48,7 +40,7 @@ if [ -f "$SCRIPT_PATH" ] && [ -f "$REPO_SCRIPT" ]; then
     fi
 fi
 
-echo "Synchronizacja plikow WWW..."
+# Kopiowanie plików WWW
 cp $GIT_DIR/*.css $WWW_DIR/ 2>/dev/null
 cp $GIT_DIR/*.js $WWW_DIR/ 2>/dev/null
 cp $GIT_DIR/*.png $WWW_DIR/ 2>/dev/null
@@ -71,44 +63,46 @@ for script in $GIT_DIR/*.sh; do
     fi
 done
 
-# === INSTALACJA MECHANIZMU RATUNKOWEGO WIFI (CRON) ===
-GUARDIAN_SCRIPT="/usr/local/bin/wifi_guardian.sh"
+# === INSTALACJA STRAŻNIKA JAKO USŁUGA SYSTEMD (PROFESJONALNA METODA) ===
 
-if [ -f "$GIT_DIR/wifi_guardian.sh" ]; then
-    cp "$GIT_DIR/wifi_guardian.sh" "$GUARDIAN_SCRIPT"
-    chmod +x "$GUARDIAN_SCRIPT"
-    
-    # Sprawdzamy czy juz jest w cronie, jak nie to dodajemy
-    crontab -l | grep -q "wifi_guardian.sh"
-    if [ $? -ne 0 ]; then
-        echo "Dodawanie WiFi Guardian do CRON..."
-        (crontab -l 2>/dev/null; echo "* * * * * $GUARDIAN_SCRIPT >/dev/null 2>&1") | crontab -
-    fi
-    echo "WiFi Guardian zainstalowany."
+# 1. Kopiujemy skrypt
+if [ -f "$GIT_DIR/wifi_guard.sh" ]; then
+    cp "$GIT_DIR/wifi_guard.sh" /usr/local/bin/wifi_guard.sh
+    chmod +x /usr/local/bin/wifi_guard.sh
 fi
-# ======================================================
+
+# 2. Czyścimy stare metody (Cron i RC.local) - żeby nie dublować
+crontab -l 2>/dev/null | grep -v "wifi_guard.sh" | grep -v "wifi_guardian.sh" | crontab -
+sed -i '/wifi_guard.sh/d' /etc/rc.local
+
+# 3. Tworzymy plik usługi .service
+cat <<EOF > /etc/systemd/system/wifi_guard.service
+[Unit]
+Description=SQLink WiFi Guardian
+After=network.target network-online.target NetworkManager.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wifi_guard.sh
+Restart=on-failure
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 4. Aktywujemy usługę
+systemctl daemon-reload
+systemctl enable wifi_guard.service
+systemctl start wifi_guard.service
+
+echo "Zainstalowano usługę: wifi_guard.service"
+# =======================================================================
 
 chown -R www-data:www-data $WWW_DIR
 chmod -R 755 $WWW_DIR
-
-cat <<EOF > /usr/local/bin/clean_logs_on_boot.sh
-#!/bin/bash
-if [ -f /var/log/svxlink ]; then
-    TIMESTAMP=\$(date +"%Y%m%d_%H%M%S")
-    mkdir -p /root/svxlink_history
-    cp /var/log/svxlink "/root/svxlink_history/svxlink_\$TIMESTAMP.log"
-    truncate -s 0 /var/log/svxlink
-fi
-truncate -s 0 /var/www/html/svx_events.log
-EOF
-chmod +x /usr/local/bin/clean_logs_on_boot.sh
-
-cat <<EOF > /etc/rc.local
-#!/bin/sh -e
-/usr/local/bin/clean_logs_on_boot.sh &
-exit 0
-EOF
-chmod +x /etc/rc.local
 
 if [[ "$SELF_UPDATED" == "1" ]]; then
     echo "STATUS: SUCCESS"
