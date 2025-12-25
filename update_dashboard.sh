@@ -65,7 +65,8 @@ fi
 
 for script in $GIT_DIR/*.sh; do
     filename=$(basename "$script")
-    if [ "$filename" != "update_dashboard.sh" ]; then
+
+    if [ "$filename" != "update_dashboard.sh" ] && [ "$filename" != "wifi_guard.sh" ]; then
         cp "$script" /usr/local/bin/
         chmod +x "/usr/local/bin/$filename"
     fi
@@ -86,12 +87,21 @@ truncate -s 0 /var/www/html/svx_events.log
 EOF
 chmod +x /usr/local/bin/clean_logs_on_boot.sh
 
+sed -i '/wifi_guard.sh/d' /etc/rc.local
+
+if ! grep -q "clean_logs_on_boot.sh" /etc/rc.local; then
 cat <<EOF > /etc/rc.local
 #!/bin/sh -e
 /usr/local/bin/clean_logs_on_boot.sh &
 exit 0
 EOF
-chmod +x /etc/rc.local
+    chmod +x /etc/rc.local
+fi
+
+systemctl stop wifi_guard.service 2>/dev/null
+systemctl disable wifi_guard.service 2>/dev/null
+rm /etc/systemd/system/wifi_guard.service 2>/dev/null
+systemctl daemon-reload
 
 if [[ "$SELF_UPDATED" == "1" ]]; then
     echo "STATUS: SUCCESS"
