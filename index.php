@@ -166,8 +166,8 @@
 
     $wifi_output = "";
     if (isset($_POST['wifi_scan'])) {
-        shell_exec('sudo nmcli dev wifi rescan > /dev/null 2>&1');
-        sleep(2);
+        shell_exec('sudo nmcli dev wifi rescan > /dev/null 2>&1 &');
+        usleep(500000);
         
         $raw = shell_exec('sudo nmcli -t -f SSID,SIGNAL,SECURITY device wifi list 2>&1');
         $lines = explode("\n", $raw);
