@@ -25,24 +25,8 @@
     </div>
 </div>
 
-<div class="help-section" style="border-left: 5px solid #FF9800;">
-    <div class="help-title"><span class="help-icon">🆘</span> 2. Tryb Ratunkowy WiFi</div>
-    <div class="help-text">
-        Twoje Orange Pi Zero posiada port Ethernet, ale co zrobić, gdy nie masz pod ręką kabla ("skrętki"), a zmieniłeś router lub zabrałeś hotspot w teren?
-        <br><br>
-        <div style="border: 3px solid #FF9800; padding: 15px; border-radius: 8px;">
-            <strong>🚨 Jak odzyskać łączność bezprzewodowo?</strong><br><br>
-            1. Włącz Hotspota i poczekaj około <strong>2 minuty</strong> (system wykryje brak sieci).<br>
-            2. Szukaj w telefonie sieci WiFi: <span style="color:#FF9800; font-size:1.1em; font-weight:bold;">SQLink_WiFi_AP</span><br>
-            🔐 <strong>Hasło:</strong> <code>sqlink123</code><br>
-            🌐 <strong>Adres strony:</strong> <a href="http://192.168.4.1" target="_blank" style="color:#FF9800; font-weight:bold;">192.168.4.1</a><br><br>
-            Połącz się, skonfiguruj nowe WiFi w zakładce "WiFi" i zrób Restart.
-        </div>
-    </div>
-</div>
-
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">🔄</span> 3. Dwa Światy: Reflektor i EchoLink</div>
+    <div class="help-title"><span class="help-icon">🔄</span> 2. Dwa Światy: Reflektor i EchoLink</div>
     <div class="help-text">
         Pamiętaj: Możesz być tylko w jednym miejscu naraz!
         
@@ -66,7 +50,7 @@
 </div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">📱</span> 4. Zakładka DTMF (Pilot)</div>
+    <div class="help-title"><span class="help-icon">📱</span> 3. Zakładka DTMF (Pilot)</div>
     <div class="help-text">
         Tutaj sterujesz hotspotem bez dotykania mikrofonu radia.
         <ul>
@@ -78,7 +62,7 @@
 </div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">🎚️</span> 5. Audio i WiFi</div>
+    <div class="help-title"><span class="help-icon">🎚️</span> 4. Audio i WiFi</div>
     <div class="help-text">
         <div class="help-warn">
             ⚠️ <strong>Ostrożnie z suwakami Audio!</strong> Zła konfiguracja może sprawić, że przestaniesz być słyszany.
@@ -92,7 +76,7 @@
 </div>
 
 <div class="help-section">
-    <div class="help-title"><span class="help-icon">⚡</span> 6. Zasilanie i Aktualizacje</div>
+    <div class="help-title"><span class="help-icon">⚡</span> 5. Zasilanie i Aktualizacje</div>
     <div class="help-text">
         W zakładce <strong>Zasilanie</strong> masz centrum sterowania życiem systemu.
         <ul>
@@ -104,7 +88,7 @@
 </div>
 
 <div class="help-section">
-    <div class="help-title" style="color: #BA68C8;"><span class="help-icon">💡</span> 7. Wskazówki i Nowe Funkcje (Warto wiedzieć)</div>
+    <div class="help-title" style="color: #BA68C8;"><span class="help-icon">💡</span> 6. Wskazówki i Nowe Funkcje (Warto wiedzieć)</div>
     <div class="help-text">
         Oto kilka przydatnych funkcji, które ułatwią Ci życie z Hotspotem:
         <ul>
