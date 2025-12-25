@@ -1,16 +1,13 @@
 <?php
-    // --- 1. API TELEMETRII ---
     if (isset($_GET['ajax_stats'])) {
         header('Content-Type: application/json');
         $stats = [];
 
-        // Hardware & Temp
         $model = @file_get_contents('/sys/firmware/devicetree/base/model');
         $stats['hw'] = $model ? str_replace("\0", "", trim($model)) : "Generic Linux";
         $temp_raw = @file_get_contents('/sys/class/thermal/thermal_zone0/temp');
         $stats['temp'] = $temp_raw ? round($temp_raw / 1000, 1) : 0;
 
-        // RAM & Disk
         $free = shell_exec('free -m');
         $free_arr = explode("\n", (string)trim($free));
         $mem = preg_split("/\s+/", $free_arr[1]);
@@ -19,7 +16,6 @@
         $df = disk_free_space('/');
         $stats['disk_percent'] = round((($dt - $df) / $dt) * 100, 1);
 
-        // NETWORK INFO
         $ip = trim(shell_exec("hostname -I | awk '{print $1}'"));
         $stats['ip'] = empty($ip) ? "Brak IP" : $ip;
         $ssid = trim(shell_exec("iwgetid -r"));
@@ -38,7 +34,6 @@
         exit;
     }
 
-    // --- 2. OBSŁUGA DTMF ---
     if (isset($_POST['ajax_dtmf'])) {
         $code = $_POST['ajax_dtmf'];
         if (preg_match('/^[0-9A-D*#]+$/', $code)) {
@@ -48,7 +43,6 @@
         exit;
     }
 
-    // --- KONFIGURACJA AUDIO I RADIO ---
     $MIXER_IDS = [
         'ADC_Gain' => 9, 'Mic1_Boost' => 8, 'Mic2_Boost' => 6,
         'Mic1_Cap_Sw' => 18, 'Mic2_Cap_Sw' => 19, 'LineIn_Cap_Sw' => 17, 'Mixer_Cap_Sw' => 15, 'Mixer_Rev_Cap_Sw' => 16,
@@ -67,19 +61,6 @@
         return $default;
     }
 
-    $CTCSS_MAP = [
-        "0000" => "Brak (Wyłączony)", "0670" => "67.0 Hz", "0719" => "71.9 Hz",
-        "0744" => "74.4 Hz", "0770" => "77.0 Hz",
-        "0797" => "79.7 Hz", "0825" => "82.5 Hz", "0854" => "85.4 Hz", "0885" => "88.5 Hz", "0915" => "91.5 Hz",
-        "0948" => "94.8 Hz", "0974" => "97.4 Hz", "1000" => "100.0 Hz", "1035" => "103.5 Hz", "1072" => "107.2 Hz",
-        "1109" => "110.9 Hz", "1148" => "114.8 Hz", "1188" => "118.8 Hz", "1230" => "123.0 Hz", "1273" => "127.3 Hz",
-        "1318" => "131.8 Hz", "1365" => "136.5 Hz", "1413" => "141.3 Hz", "1462" => "146.2 Hz", "1514" => "151.4 Hz",
-        "1567" => "156.7 Hz", "1622" => "162.2 Hz", "1679" => "167.9 Hz", "1738" => "173.8 Hz", "1799" => "179.9 Hz",
-        "1862" => "186.2 Hz", "1928" => "192.8 Hz", "2035" => "203.5 Hz", "2107" => "210.7 Hz", "2181" => "218.1 Hz",
-        "2257" => "225.7 Hz", "2336" => "233.6 Hz", "2418" => "241.8 Hz", "2503" => "250.3 Hz"
-    ];
-
-    // --- LOGIKA FORMULARZY ---
     if (isset($_POST['reset_audio_defaults'])) {
         $output = shell_exec("sudo /usr/local/bin/reset_audio.sh 2>&1");
         $audio_msg = "<div class='alert alert-warning' style='border-color: #FF9800; color: #FF9800;'><strong>⚠️ Reset Audio:</strong><pre style='text-align:left; font-size:11px;'>$output</pre></div>";
@@ -93,7 +74,6 @@
 
     $audio = []; foreach ($MIXER_IDS as $name => $id) $audio[$name] = get_amixer_val($id, 0);
 
-    // --- PARSOWANIE CONFIGU ---
     function parse_svx_conf($file) {
         $ini = []; $curr = "GLOBAL";
         if (!file_exists($file)) return [];
@@ -125,7 +105,6 @@
     $radio = ["rx" => "432.8500", "tx" => "432.8500", "ctcss" => "0000", "sq" => "2"];
     if (file_exists($jsonFile)) { $loaded = json_decode(file_get_contents($jsonFile), true); if ($loaded) $radio = array_merge($radio, $loaded); }
 
-    // --- AKCJE SYSTEMOWE ---
     if (isset($_POST['save_svx_full'])) {
         $newData = $_POST; unset($newData['save_svx_full'], $newData['active_tab']); file_put_contents('/tmp/svx_new_settings.json', json_encode($newData));
         shell_exec('sudo /usr/bin/python3 /usr/local/bin/update_svx_full.py 2>&1'); shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &');
@@ -160,57 +139,58 @@
         echo "<div class='alert alert-success'>Radio (Simplex): $out</div>";
     }
 
-    // ZASILANIE
     if (isset($_POST['restart_srv'])) { shell_exec('sudo /usr/bin/systemctl restart svxlink > /dev/null 2>&1 &'); echo "<div class='alert alert-success'>Restart Usługi...</div>"; }
     if (isset($_POST['reboot_device'])) { shell_exec('sudo /usr/sbin/reboot > /dev/null 2>&1 &'); echo "<div class='alert alert-warning'>🔄 Reboot...</div>"; }
     if (isset($_POST['shutdown_device'])) { shell_exec('sudo /usr/sbin/shutdown -h now > /dev/null 2>&1 &'); echo "<div class='alert alert-error'>🛑 Shutdown...</div>"; }
     if (isset($_POST['auto_proxy'])) { $out = shell_exec("sudo /usr/local/bin/proxy_hunter.py 2>&1"); echo "<div class='alert alert-warning'><strong>♻️ Auto-Proxy:</strong><br><small>$out</small></div><meta http-equiv='refresh' content='3'>"; }
     
-    // --- SMART UPDATE (Dla Orange Pi) ---
     if (isset($_POST['git_update'])) {
         $out = shell_exec("sudo /usr/local/bin/update_dashboard.sh 2>&1");
         
         if (strpos($out, 'STATUS: SUCCESS') !== false) {
-            // Sukces -> Restart
             shell_exec('sudo /usr/sbin/reboot > /dev/null 2>&1 &');
             echo "
             <div class='alert alert-success' style='text-align:left;'>
-                <strong>✅ AKTUALIZACJA ZAKOŃCZONA SUKCESEM!</strong><br>
-                System zostanie zrestartowany za <span id='cnt'>5</span> sekund...
+                <strong>✅ AKTUALIZACJA SUKCES!</strong><br>
+                Restart systemu za <span id='cnt'>5</span> sekund...
                 <pre style='font-size:10px; margin-top:5px; background:#111; padding:5px; border-radius:3px; max-height:200px; overflow:auto;'>$out</pre>
             </div>
-            <script>
-                var sec = 5;
-                setInterval(function(){
-                    sec--;
-                    document.getElementById('cnt').innerText = sec;
-                    if(sec <= 0) window.location.href = '/';
-                }, 1000);
-            </script>
+            <script>var sec=5;setInterval(function(){sec--;document.getElementById('cnt').innerText=sec;if(sec<=0)window.location.href='/';},1000);</script>
             ";
         } elseif (strpos($out, 'STATUS: UP_TO_DATE') !== false) {
-             // Brak zmian -> Info
-             echo "
-             <div class='alert alert-warning' style='text-align:left;'>
-                <strong>⚠️ SYSTEM JEST JUŻ AKTUALNY</strong><br>
-                Brak nowych zmian do pobrania.
-                <pre style='font-size:10px; margin-top:5px; background:#222; padding:5px; border-radius:3px;'>$out</pre>
-             </div><meta http-equiv='refresh' content='4'>";
+             echo "<div class='alert alert-warning'><strong>⚠️ SYSTEM JEST AKTUALNY</strong><br>Brak zmian.<pre style='font-size:10px;'>$out</pre></div><meta http-equiv='refresh' content='4'>";
         } else {
-            // Błąd
-            echo "
-            <div class='alert alert-error' style='text-align:left;'>
-                <strong>❌ BŁĄD AKTUALIZACJI!</strong><br>
-                Sprawdź logi poniżej.
-                <pre style='font-size:10px; margin-top:5px; background:#300; padding:5px; border-radius:3px;'>$out</pre>
-            </div>";
+            echo "<div class='alert alert-error'><strong>❌ BŁĄD AKTUALIZACJI!</strong><pre style='font-size:10px;'>$out</pre></div>";
         }
     }
 
     $wifi_output = "";
-    if (isset($_POST['wifi_scan'])) { shell_exec('sudo nmcli dev wifi rescan'); $raw = shell_exec('sudo nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list 2>&1'); $lines = explode("\n", $raw); foreach($lines as $line) { if(empty($line)) continue; $parts = explode(':', $line); $sec = array_pop($parts); $sig = array_pop($parts); $ssid = implode(':', $parts); if(!empty($ssid)) $wifi_scan_results[$ssid] = ['ssid'=>$ssid, 'signal'=>$sig, 'sec'=>$sec]; } usort($wifi_scan_results, function($a, $b) { return $b['signal'] - $a['signal']; }); }
+    if (isset($_POST['wifi_scan'])) {
+        $raw = shell_exec('sudo nmcli -t -f SSID,SIGNAL,SECURITY device wifi list --rescan yes 2>&1');
+        $lines = explode("\n", $raw);
+        $unique_ssids = [];
+        
+        foreach($lines as $line) {
+            if(empty($line)) continue;
+            $parts = explode(':', $line);
+            if(count($parts) < 3) continue;
+            
+            $sec = array_pop($parts);
+            $sig = array_pop($parts);
+            $ssid = implode(':', $parts);
+            
+            if(empty($ssid)) continue;
+            if($ssid == "SQLink_WiFi_AP") continue; 
+            if($ssid == "--") continue;
 
-    // Lista zapamiętanych sieci WiFi
+            if(!isset($unique_ssids[$ssid]) || $unique_ssids[$ssid]['signal'] < $sig) {
+                $unique_ssids[$ssid] = ['ssid'=>$ssid, 'signal'=>$sig, 'sec'=>$sec];
+            }
+        }
+        $wifi_scan_results = array_values($unique_ssids);
+        usort($wifi_scan_results, function($a, $b) { return $b['signal'] - $a['signal']; });
+    }
+
     $saved_wifi_list = [];
     $saved_raw = shell_exec("sudo nmcli -t -f NAME,TYPE connection show | grep '802-11-wireless'");
     if($saved_raw) {
@@ -218,12 +198,18 @@
         foreach($s_lines as $s_line) {
             $s_parts = explode(":", $s_line);
             if(count($s_parts) >= 1) {
-                $saved_wifi_list[] = $s_parts[0];
+                if($s_parts[0] != "Rescue_AP") {
+                    $saved_wifi_list[] = $s_parts[0];
+                }
             }
         }
     }
 
-    if (isset($_POST['wifi_connect'])) { $ssid = escapeshellarg($_POST['ssid']); $pass = escapeshellarg($_POST['pass']); $wifi_output = shell_exec("sudo nmcli dev wifi connect $ssid password $pass 2>&1"); }
+    if (isset($_POST['wifi_connect'])) { 
+        $ssid = escapeshellarg($_POST['ssid']); 
+        $pass = escapeshellarg($_POST['pass']); 
+        $wifi_output = shell_exec("sudo nmcli dev wifi connect $ssid password $pass 2>&1"); 
+    }
     if (isset($_POST['wifi_delete'])) {
         $ssid = escapeshellarg($_POST['ssid']);
         $wifi_output = shell_exec("sudo nmcli connection delete $ssid 2>&1");
@@ -256,30 +242,11 @@
     </header>
 
     <div class="telemetry-row">
-        <div class="t-box">
-            <div class="t-label">CPU Temp</div>
-            <div class="t-val" id="t-temp">...</div>
-            <div class="progress-bg"><div class="progress-fill" id="t-temp-bar" style="width: 0%;"></div></div>
-        </div>
-        <div class="t-box">
-            <div class="t-label">RAM Used</div>
-            <div class="t-val" id="t-ram">...</div>
-            <div class="progress-bg"><div class="progress-fill" id="t-ram-bar" style="width: 0%;"></div></div>
-        </div>
-        <div class="t-box">
-            <div class="t-label">Disk Used</div>
-            <div class="t-val" id="t-disk">...</div>
-            <div class="progress-bg"><div class="progress-fill" id="t-disk-bar" style="width: 0%;"></div></div>
-        </div>
-        <div class="t-box">
-            <div class="t-label">Network</div>
-            <div class="t-val" id="t-net-type">...</div>
-            <div style="font-size:9px; color:#aaa;" id="t-ip">...</div>
-        </div>
-        <div class="t-box">
-            <div class="t-label">Hardware</div>
-            <div class="t-val" id="t-hw" style="font-size:10px; margin-top:5px;">...</div>
-        </div>
+        <div class="t-box"><div class="t-label">CPU Temp</div><div class="t-val" id="t-temp">...</div><div class="progress-bg"><div class="progress-fill" id="t-temp-bar" style="width: 0%;"></div></div></div>
+        <div class="t-box"><div class="t-label">RAM Used</div><div class="t-val" id="t-ram">...</div><div class="progress-bg"><div class="progress-fill" id="t-ram-bar" style="width: 0%;"></div></div></div>
+        <div class="t-box"><div class="t-label">Disk Used</div><div class="t-val" id="t-disk">...</div><div class="progress-bg"><div class="progress-fill" id="t-disk-bar" style="width: 0%;"></div></div></div>
+        <div class="t-box"><div class="t-label">Network</div><div class="t-val" id="t-net-type">...</div><div style="font-size:9px; color:#aaa;" id="t-ip">...</div></div>
+        <div class="t-box"><div class="t-label">Hardware</div><div class="t-val" id="t-hw" style="font-size:10px; margin-top:5px;">...</div></div>
     </div>
 
     <div class="info-panel">
@@ -304,42 +271,15 @@
         <button id="btn-Help" class="tab-btn" onclick="openTab(event, 'Help')">Pomoc</button>
     </div>
 
-    <div id="Dashboard" class="tab-content active">
-        <?php include 'tab_dashboard.php'; ?>
-    </div>
-
-    <div id="DTMF" class="tab-content">
-        <?php include 'tab_dtmf.php'; ?>
-    </div>
-
-    <div id="Audio" class="tab-content">
-        <?php include 'tab_audio.php'; ?>
-    </div>
-
-    <div id="Radio" class="tab-content">
-        <?php include 'tab_radio.php'; ?>
-    </div>
-
-    <div id="SvxConfig" class="tab-content">
-        <?php include 'tab_config.php'; ?>
-    </div>
-
-    <div id="WiFi" class="tab-content">
-        <?php include 'tab_wifi.php'; ?>
-    </div>
-
-    <div id="Power" class="tab-content">
-        <?php include 'tab_power.php'; ?>
-    </div>
-
-    <div id="Nodes" class="tab-content">
-        <?php include 'tab_nodes.php'; ?>
-    </div>
-
-    <div id="Help" class="tab-content">
-        <?php include 'help.php'; ?>
-    </div>
-
+    <div id="Dashboard" class="tab-content active"><?php include 'tab_dashboard.php'; ?></div>
+    <div id="DTMF" class="tab-content"><?php include 'tab_dtmf.php'; ?></div>
+    <div id="Audio" class="tab-content"><?php include 'tab_audio.php'; ?></div>
+    <div id="Radio" class="tab-content"><?php include 'tab_radio.php'; ?></div>
+    <div id="SvxConfig" class="tab-content"><?php include 'tab_config.php'; ?></div>
+    <div id="WiFi" class="tab-content"><?php include 'tab_wifi.php'; ?></div>
+    <div id="Power" class="tab-content"><?php include 'tab_power.php'; ?></div>
+    <div id="Nodes" class="tab-content"><?php include 'tab_nodes.php'; ?></div>
+    <div id="Help" class="tab-content"><?php include 'help.php'; ?></div>
     <div id="Logs" class="tab-content"><div id="log-content" class="log-box">...</div></div>
 </div>
 
@@ -349,11 +289,7 @@
     Website design by <span class="callsign-blue">SQ7UTP</span>
 </div>
 
-<script>
-    const GLOBAL_CALLSIGN = "<?php echo $vals['Callsign']; ?>";
-</script>
-
+<script>const GLOBAL_CALLSIGN = "<?php echo $vals['Callsign']; ?>";</script>
 <script src="script.js?v=<?php echo time(); ?>"></script>
-
 </body>
 </html>
