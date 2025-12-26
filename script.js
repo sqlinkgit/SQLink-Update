@@ -49,8 +49,11 @@ function initModuleToggles() {
         var btn = document.getElementById('btn-' + modName);
         if(btn) {
             var searchName = modName;
-            if (modName === 'ModuleParrot') searchName = 'parrot';
-            if (modName === 'ModuleEchoLink') searchName = 'echolink';
+            
+            
+            if (modName === 'ModuleParrot') searchName = 'Parrot';
+            if (modName === 'ModuleEchoLink') searchName = 'EchoLink';
+            
 
             if (currentModules.includes(searchName)) {
                 btn.classList.add('active');
@@ -79,8 +82,9 @@ function toggleModule(modName) {
     if(!btn || !input) return;
     
     var nameToStore = modName;
-    if (modName === 'ModuleParrot') nameToStore = 'parrot';
-    if (modName === 'ModuleEchoLink') nameToStore = 'echolink';
+    
+    if (modName === 'ModuleParrot') nameToStore = 'Parrot';
+    if (modName === 'ModuleEchoLink') nameToStore = 'EchoLink';
 
     var isActive = btn.classList.contains('active');
     var currentList = input.value.split(',').map(s => s.trim()).filter(s => s !== "");

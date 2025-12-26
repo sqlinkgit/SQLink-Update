@@ -81,7 +81,7 @@ def main():
         el_pass = data.get('EL_Password', '')
         if not el_pass:
             modules_list = [m.strip() for m in modules_str.split(',')]
-            modules_list = [m for m in modules_list if 'EchoLink' not in m and 'echolink' not in m]
+            modules_list = [m for m in modules_list if 'EchoLink' not in m]
             data['Modules'] = ",".join(modules_list)
 
     qth_name = data.get('qth_name', '')
@@ -101,7 +101,7 @@ def main():
         except: pass
 
     is_echolink = "0"
-    if data.get('Modules') and ("EchoLink" in data['Modules'] or "echolink" in data['Modules']):
+    if data.get('Modules') and ("EchoLink" in data['Modules']):
         is_echolink = "1"
 
     node_info_data = {
