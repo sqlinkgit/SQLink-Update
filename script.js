@@ -367,7 +367,7 @@ loadLogsAndStatus();
 updateStats();
 updateNodes();
 
-/* --- GRID MAPPER LOGIC --- */
+/* --- GRID MAPPER LOGIC (Poprawiona obsługa warstw) --- */
 var mapInstance = null;
 
 function qthToLatLon(qth) {
@@ -384,14 +384,25 @@ function openGridMapper() {
     document.getElementById('map-overlay').style.display = 'flex';
     
     var style = localStorage.getItem('mapStyle') || 'dark';
-    var tileUrl = '';
     
+    var tileUrl = '';
+    var tileOptions = {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    };
+    
+    // Dobieramy parametry zależnie od stylu
     if(style === 'light') {
         tileUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+        tileOptions.subdomains = 'abcd';
+        tileOptions.attribution += ' &copy; CARTO';
     } else if(style === 'osm') {
         tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        tileOptions.subdomains = 'abc'; // TU BYŁ BŁĄD: OSM ma tylko a, b, c
     } else {
         tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        tileOptions.subdomains = 'abcd';
+        tileOptions.attribution += ' &copy; CARTO';
     }
     
     if (mapInstance) {
@@ -401,11 +412,7 @@ function openGridMapper() {
 
     mapInstance = L.map('map-container').setView([52.0, 19.0], 6);
     
-    L.tileLayer(tileUrl, {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
-        subdomains: 'abcd',
-        maxZoom: 19
-    }).addTo(mapInstance);
+    L.tileLayer(tileUrl, tileOptions).addTo(mapInstance);
 
     var nodes = cachedNodesData;
     if (!nodes) return;
