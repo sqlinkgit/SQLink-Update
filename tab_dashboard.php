@@ -76,7 +76,7 @@
     <div style="background: #222; padding: 8px 15px; border-radius: 20px; border: 1px solid #444; display:flex; align-items:center; gap:8px;">
         <span style="font-size:16px;">🔒</span>
         <span style="font-size:13px; color:#aaa;">CTCSS:</span>
-        <b style="color:#FF9800; font-size:14px;"><?php echo $radio['ctcss']; ?></b>
+        <b style="color:#FF9800; font-size:14px;"><?php echo isset($CTCSS_MAP[$radio['ctcss']]) ? $CTCSS_MAP[$radio['ctcss']] : $radio['ctcss']; ?></b>
     </div>
     <?php endif; ?>
 </div>
