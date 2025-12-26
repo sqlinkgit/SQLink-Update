@@ -19,9 +19,9 @@ def update_key_in_lines(lines, section, key, value):
     new_lines = []
     in_section = False
     key_found = False
-    
     section_header = f"[{section}]"
     section_exists = False
+    
     for line in lines:
         if line.strip() == section_header:
             section_exists = True
@@ -35,12 +35,15 @@ def update_key_in_lines(lines, section, key, value):
         if stripped.startswith("[") and stripped.endswith("]"):
             in_section = (stripped == section_header)
         
-        if in_section and stripped.startswith(f"{key}="):
-            
-            new_lines.append(f"{key}={value}\n")
-            key_found = True
-        else:
-            new_lines.append(line)
+        if in_section and "=" in stripped and not stripped.startswith(("#", ";")):
+            parts = stripped.split("=", 1)
+            current_key = parts[0].strip()
+            if current_key == key:
+                new_lines.append(f"{key}={value}\n")
+                key_found = True
+                continue 
+
+        new_lines.append(line)
 
     if not key_found:
         final_lines = []
@@ -52,17 +55,17 @@ def update_key_in_lines(lines, section, key, value):
                 in_tgt_sec = True
                 final_lines.append(l)
                 continue
-            
             if in_tgt_sec and s.startswith("["):
                 if not added:
                     final_lines.append(f"{key}={value}\n")
                     added = True
                 in_tgt_sec = False
-            
             final_lines.append(l)
-        
+        if in_tgt_sec and not added:
+             final_lines.append(f"{key}={value}\n")
+             added = True
         if not added:
-            final_lines.append(f"{key}={value}\n")
+             final_lines.append(f"{key}={value}\n")
         return final_lines
 
     return new_lines
@@ -75,10 +78,7 @@ def main():
 
     
     modules_str = data.get('Modules')
-    if modules_str is None:
-        
-        pass 
-    else:
+    if modules_str is not None:
         
         el_pass = data.get('EL_Password', '')
         if not el_pass:
@@ -86,17 +86,25 @@ def main():
             modules_list = [m for m in modules_list if 'EchoLink' not in m]
             modules_str = ",".join(modules_list)
         
-        data['Modules'] = modules_str
+        
+        clean_modules = []
+        for m in modules_str.split(','):
+            m = m.strip()
+            if m.startswith("Module"):
+                clean_modules.append(m.replace("Module", ""))
+            else:
+                clean_modules.append(m)
+        
+        
+        data['Modules'] = ",".join(clean_modules)
 
     qth_name = data.get('qth_name', '')
     qth_city = data.get('qth_city', '')
     qth_loc = data.get('qth_loc', '')
 
-    
     rx_freq = ""
     tx_freq = ""
     ctcss = "0"
-    
     if os.path.exists(RADIO_JSON):
         try:
             with open(RADIO_JSON, 'r') as rf:
@@ -104,45 +112,37 @@ def main():
                 rx_freq = rdata.get("rx", "")
                 tx_freq = rdata.get("tx", "")
                 ctcss = rdata.get("ctcss", "0")
-        except:
-            pass
+        except: pass
 
     
-    modules_for_info = data.get('Modules', 'Help,Parrot,EchoLink')
-    
+    is_echolink = "0"
+    if data.get('Modules') and "EchoLink" in data['Modules']:
+        is_echolink = "1"
+
     node_info_data = {
         "Location": qth_city,
         "Locator": qth_loc,
         "Sysop": qth_name,
-        "LAT": "0.0", 
-        "LONG": "0.0",
-        "TXFREQ": tx_freq,
-        "RXFREQ": rx_freq,
-        "CTCSS": ctcss,
+        "LAT": "0.0", "LONG": "0.0",
+        "TXFREQ": tx_freq, "RXFREQ": rx_freq, "CTCSS": ctcss,
         "DefaultTG": data.get('DefaultTG', '0'),
-        "Mode": "FM",
-        "Type": "1", 
-        "Echolink": "1" if 'EchoLink' in modules_for_info else "0",
+        "Mode": "FM", "Type": "1", 
+        "Echolink": is_echolink,
         "Website": "http://sqlink.pl",
         "LinkedTo": "SQLink"
     }
 
     try:
-        with open(NODE_INFO_FILE, 'w') as nf:
-            json.dump(node_info_data, nf, indent=4)
+        with open(NODE_INFO_FILE, 'w') as nf: json.dump(node_info_data, nf, indent=4)
         os.chmod(NODE_INFO_FILE, 0o644) 
-    except Exception as e:
-        print(f"Error writing node_info.json: {e}")
+    except Exception as e: print(f"Error writing node_info.json: {e}")
 
-    
     loc_parts = []
     if qth_city: loc_parts.append(qth_city)
     if qth_loc: loc_parts.append(qth_loc)
     if qth_name: loc_parts.append(f"(Op: {qth_name})")
     location_str = ", ".join(loc_parts)
 
-    
-    
     mapping = {
         "ReflectorLogic": {
             "CALLSIGN": data.get('Callsign'),
@@ -179,28 +179,22 @@ def main():
 
     for section, keys in mapping.items():
         for cfg_key, json_val in keys.items():
-            
             if json_val is not None:
-                
                 lines = update_key_in_lines(lines, section, cfg_key, str(json_val))
 
     save_lines(CONFIG_FILE, lines)
 
-
     radio_data = {}
     if os.path.exists(RADIO_JSON):
         with open(RADIO_JSON, 'r') as f:
-            try:
-                radio_data = json.load(f)
-            except:
-                pass
+            try: radio_data = json.load(f)
+            except: pass
 
     if 'qth_name' in data: radio_data['qth_name'] = qth_name
     if 'qth_city' in data: radio_data['qth_city'] = qth_city
     if 'qth_loc' in data: radio_data['qth_loc'] = qth_loc
 
-    with open(RADIO_JSON, 'w') as f:
-        json.dump(radio_data, f, indent=4)
+    with open(RADIO_JSON, 'w') as f: json.dump(radio_data, f, indent=4)
 
     print("SUKCES")
 
