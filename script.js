@@ -78,18 +78,39 @@ function toggleModule(modName) {
     var isActive = btn.classList.contains('active');
     var currentList = input.value.split(',').map(s => s.trim()).filter(s => s !== "");
     
+    var shortName = modName.replace('Module', '');
+
     if (isActive) {
         btn.classList.remove('active');
-        var shortName = modName.replace('Module', '');
         currentList = currentList.filter(s => s !== modName && s !== shortName);
     } else {
         btn.classList.add('active');
-        if (!currentList.includes(modName)) {
-            currentList.push(modName);
+        if (!currentList.includes(shortName)) {
+            currentList.push(shortName);
         }
     }
     
     input.value = currentList.join(',');
+}
+
+/* --- MAP STYLE FUNCTIONS --- */
+function setMapStyle(style) {
+    localStorage.setItem('mapStyle', style);
+    updateMapButtons(style);
+}
+
+function updateMapButtons(activeStyle) {
+    var styles = ['dark', 'light', 'osm'];
+    styles.forEach(function(s) {
+        var btn = document.getElementById('btn-map-' + s);
+        if(btn) {
+            if(s === activeStyle) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    });
 }
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -103,6 +124,9 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     
     initModuleToggles();
+    
+    var currentMapStyle = localStorage.getItem('mapStyle') || 'dark';
+    updateMapButtons(currentMapStyle);
 });
 
 function updateStats() {
@@ -359,19 +383,29 @@ function qthToLatLon(qth) {
 function openGridMapper() {
     document.getElementById('map-overlay').style.display = 'flex';
     
-    if (!mapInstance) {
-        mapInstance = L.map('map-container').setView([52.0, 19.0], 6);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO',
-            subdomains: 'abcd',
-            maxZoom: 19
-        }).addTo(mapInstance);
+    var style = localStorage.getItem('mapStyle') || 'dark';
+    var tileUrl = '';
+    
+    if(style === 'light') {
+        tileUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    } else if(style === 'osm') {
+        tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    } else {
+        tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     }
     
-    // Clear old markers
-    mapInstance.eachLayer(function (layer) {
-        if (layer instanceof L.Marker) { mapInstance.removeLayer(layer); }
-    });
+    if (mapInstance) {
+        mapInstance.remove();
+        mapInstance = null;
+    }
+
+    mapInstance = L.map('map-container').setView([52.0, 19.0], 6);
+    
+    L.tileLayer(tileUrl, {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19
+    }).addTo(mapInstance);
 
     var nodes = cachedNodesData;
     if (!nodes) return;

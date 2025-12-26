@@ -40,6 +40,18 @@
         </div>
 
         <div class="panel-box box-full">
+            <h4 class="panel-title green">Wygląd Mapy (Grid Mapper)</h4>
+            <div class="form-group" style="margin-bottom: 5px;">
+                <label style="text-align:center; margin-bottom:10px;">Wybierz Styl Mapy</label>
+                <div class="mod-grid">
+                    <div class="mod-btn" id="btn-map-dark" onclick="setMapStyle('dark')">🌑 Ciemna (Dark)</div>
+                    <div class="mod-btn" id="btn-map-light" onclick="setMapStyle('light')">☀️ Jasna (Light)</div>
+                    <div class="mod-btn" id="btn-map-osm" onclick="setMapStyle('osm')">🗺️ Kolorowa (OSM)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-box box-full">
             <h4 class="panel-title green">Zaawansowane / Audio</h4>
             
             <div class="form-group" style="margin-bottom: 20px;">
