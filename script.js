@@ -342,3 +342,61 @@ setInterval(updateNodes, 5000);
 loadLogsAndStatus();
 updateStats();
 updateNodes();
+
+/* --- GRID MAPPER LOGIC --- */
+var mapInstance = null;
+
+function qthToLatLon(qth) {
+    qth = qth.toUpperCase();
+    if (!/^[A-R]{2}[0-9]{2}[A-X]{2}$/.test(qth)) return null;
+
+    var lon = (qth.charCodeAt(0) - 65) * 20 - 180 + (parseInt(qth.charAt(2)) * 2) + ((qth.charCodeAt(4) - 65) + 0.5) / 12;
+    var lat = (qth.charCodeAt(1) - 65) * 10 - 90 + parseInt(qth.charAt(3)) + ((qth.charCodeAt(5) - 65) + 0.5) / 24;
+
+    return [lat, lon];
+}
+
+function openGridMapper() {
+    document.getElementById('map-overlay').style.display = 'flex';
+    
+    if (!mapInstance) {
+        mapInstance = L.map('map-container').setView([52.0, 19.0], 6);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(mapInstance);
+    }
+    
+    // Clear old markers
+    mapInstance.eachLayer(function (layer) {
+        if (layer instanceof L.Marker) { mapInstance.removeLayer(layer); }
+    });
+
+    var nodes = cachedNodesData;
+    if (!nodes) return;
+
+    Object.keys(nodes).forEach(function(callsign) {
+        var n = nodes[callsign];
+        var loc = "";
+        
+        if (n.Locator) loc = n.Locator;
+        else if (n.qth && n.qth.length > 0 && n.qth[0].pos) loc = n.qth[0].pos.loc;
+        
+        if (loc) {
+            var coords = qthToLatLon(loc);
+            if (coords) {
+                var popupContent = "<b>" + callsign + "</b><br>" + loc;
+                if(n.Sysop) popupContent += "<br>" + n.Sysop;
+                
+                L.marker(coords).addTo(mapInstance).bindPopup(popupContent);
+            }
+        }
+    });
+    
+    setTimeout(function(){ mapInstance.invalidateSize(); }, 200);
+}
+
+function closeGridMapper() {
+    document.getElementById('map-overlay').style.display = 'none';
+}
