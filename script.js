@@ -48,8 +48,11 @@ function initModuleToggles() {
     btnIds.forEach(function(modName) {
         var btn = document.getElementById('btn-' + modName);
         if(btn) {
-            var shortName = modName.replace('Module', '');
-            if (currentModules.includes(modName) || currentModules.includes(shortName)) {
+            var searchName = modName;
+            if (modName === 'ModuleParrot') searchName = 'parrot';
+            if (modName === 'ModuleEchoLink') searchName = 'echolink';
+
+            if (currentModules.includes(searchName)) {
                 btn.classList.add('active');
             } else {
                 btn.classList.remove('active');
@@ -75,25 +78,26 @@ function toggleModule(modName) {
     var input = document.getElementById('input-modules');
     if(!btn || !input) return;
     
+    var nameToStore = modName;
+    if (modName === 'ModuleParrot') nameToStore = 'parrot';
+    if (modName === 'ModuleEchoLink') nameToStore = 'echolink';
+
     var isActive = btn.classList.contains('active');
     var currentList = input.value.split(',').map(s => s.trim()).filter(s => s !== "");
     
-    var shortName = modName.replace('Module', '');
-
     if (isActive) {
         btn.classList.remove('active');
-        currentList = currentList.filter(s => s !== modName && s !== shortName);
+        currentList = currentList.filter(s => s !== nameToStore);
     } else {
         btn.classList.add('active');
-        if (!currentList.includes(shortName)) {
-            currentList.push(shortName);
+        if (!currentList.includes(nameToStore)) {
+            currentList.push(nameToStore);
         }
     }
     
     input.value = currentList.join(',');
 }
 
-/* --- MAP STYLE FUNCTIONS --- */
 function setMapStyle(style) {
     localStorage.setItem('mapStyle', style);
     updateMapButtons(style);
@@ -367,7 +371,6 @@ loadLogsAndStatus();
 updateStats();
 updateNodes();
 
-/* --- GRID MAPPER LOGIC (Poprawiona obsługa warstw) --- */
 var mapInstance = null;
 
 function qthToLatLon(qth) {
@@ -391,14 +394,13 @@ function openGridMapper() {
         attribution: '&copy; OpenStreetMap contributors'
     };
     
-    // Dobieramy parametry zależnie od stylu
     if(style === 'light') {
         tileUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
         tileOptions.subdomains = 'abcd';
         tileOptions.attribution += ' &copy; CARTO';
     } else if(style === 'osm') {
         tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        tileOptions.subdomains = 'abc'; // TU BYŁ BŁĄD: OSM ma tylko a, b, c
+        tileOptions.subdomains = 'abc'; 
     } else {
         tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
         tileOptions.subdomains = 'abcd';
