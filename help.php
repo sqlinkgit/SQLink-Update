@@ -95,6 +95,9 @@
             <li style="margin-bottom: 8px;"><strong>🌍 Twoja Wizytówka w Sieci:</strong>
                 <br>W zakładce <strong>Config</strong> uzupełnij nową sekcję <em>"Lokalizacja i Operator"</em>. Dzięki temu Twoje Imię i Miasto będą widoczne dla innych kolegów w sieci (w dymkach informacyjnych i na mapie).
             </li>
+            <li style="margin-bottom: 8px;"><strong>🗺️ Grid Mapper (Mapa Sieci):</strong>
+                <br>W zakładce <strong>Nodes</strong> znajdziesz przycisk otwierający mapę aktywnych stacji. Możesz zmienić jej wygląd (Ciemna / Jasna / Kolorowa) w zakładce <strong>Config</strong>.
+            </li>
             <li style="margin-bottom: 8px;"><strong>🖱️ Szybki Podgląd QRZ:</strong>
                 <br>W zakładce <strong>Nodes</strong> (Węzły) kafelki stacji są interaktywne. <strong>Kliknij w znak stacji</strong>, aby natychmiast otworzyć jej profil na QRZ.com w nowym oknie.
             </li>
