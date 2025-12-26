@@ -76,16 +76,13 @@ def main():
 
     lines = load_lines(CONFIG_FILE)
 
-    
     modules_str = data.get('Modules')
     if modules_str is not None:
-        
         el_pass = data.get('EL_Password', '')
         if not el_pass:
             modules_list = [m.strip() for m in modules_str.split(',')]
             modules_list = [m for m in modules_list if 'EchoLink' not in m]
             modules_str = ",".join(modules_list)
-        
         
         clean_modules = []
         for m in modules_str.split(','):
@@ -94,8 +91,6 @@ def main():
                 clean_modules.append(m.replace("Module", ""))
             else:
                 clean_modules.append(m)
-        
-        
         data['Modules'] = ",".join(clean_modules)
 
     qth_name = data.get('qth_name', '')
@@ -114,7 +109,6 @@ def main():
                 ctcss = rdata.get("ctcss", "0")
         except: pass
 
-    
     is_echolink = "0"
     if data.get('Modules') and "EchoLink" in data['Modules']:
         is_echolink = "1"
@@ -165,7 +159,8 @@ def main():
             "RGR_SOUND_ALWAYS": data.get('RogerBeep'),
             "MODULES": data.get('Modules')
         },
-        "ModuleEchoLink": {
+        
+        "EchoLink": {
             "CALLSIGN": data.get('EL_Callsign'),
             "PASSWORD": data.get('EL_Password'),
             "SYSOPNAME": data.get('EL_Sysop'),
