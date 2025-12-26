@@ -36,6 +36,7 @@ def update_key_in_lines(lines, section, key, value):
             in_section = (stripped == section_header)
         
         if in_section and stripped.startswith(f"{key}="):
+            
             new_lines.append(f"{key}={value}\n")
             key_found = True
         else:
@@ -72,18 +73,26 @@ def main():
 
     lines = load_lines(CONFIG_FILE)
 
-    modules_str = data.get('Modules', 'Help,Parrot,EchoLink')
-    el_pass = data.get('EL_Password', '')
     
-    if not el_pass:
-        modules_list = [m.strip() for m in modules_str.split(',')]
-        modules_list = [m for m in modules_list if 'EchoLink' not in m]
-        modules_str = ",".join(modules_list)
+    modules_str = data.get('Modules')
+    if modules_str is None:
+        
+        pass 
+    else:
+        
+        el_pass = data.get('EL_Password', '')
+        if not el_pass:
+            modules_list = [m.strip() for m in modules_str.split(',')]
+            modules_list = [m for m in modules_list if 'EchoLink' not in m]
+            modules_str = ",".join(modules_list)
+        
+        data['Modules'] = modules_str
 
     qth_name = data.get('qth_name', '')
     qth_city = data.get('qth_city', '')
     qth_loc = data.get('qth_loc', '')
 
+    
     rx_freq = ""
     tx_freq = ""
     ctcss = "0"
@@ -98,6 +107,9 @@ def main():
         except:
             pass
 
+    
+    modules_for_info = data.get('Modules', 'Help,Parrot,EchoLink')
+    
     node_info_data = {
         "Location": qth_city,
         "Locator": qth_loc,
@@ -110,7 +122,7 @@ def main():
         "DefaultTG": data.get('DefaultTG', '0'),
         "Mode": "FM",
         "Type": "1", 
-        "Echolink": "1" if 'EchoLink' in modules_str else "0",
+        "Echolink": "1" if 'EchoLink' in modules_for_info else "0",
         "Website": "http://sqlink.pl",
         "LinkedTo": "SQLink"
     }
@@ -122,12 +134,15 @@ def main():
     except Exception as e:
         print(f"Error writing node_info.json: {e}")
 
+    
     loc_parts = []
     if qth_city: loc_parts.append(qth_city)
     if qth_loc: loc_parts.append(qth_loc)
     if qth_name: loc_parts.append(f"(Op: {qth_name})")
     location_str = ", ".join(loc_parts)
 
+    
+    
     mapping = {
         "ReflectorLogic": {
             "CALLSIGN": data.get('Callsign'),
@@ -148,11 +163,11 @@ def main():
         "SimplexLogic": {
             "CALLSIGN": data.get('Callsign'),
             "RGR_SOUND_ALWAYS": data.get('RogerBeep'),
-            "MODULES": modules_str
+            "MODULES": data.get('Modules')
         },
         "ModuleEchoLink": {
             "CALLSIGN": data.get('EL_Callsign'),
-            "PASSWORD": el_pass,
+            "PASSWORD": data.get('EL_Password'),
             "SYSOPNAME": data.get('EL_Sysop'),
             "LOCATION": data.get('EL_Location'),
             "DESCRIPTION": data.get('EL_Desc'),
@@ -164,13 +179,13 @@ def main():
 
     for section, keys in mapping.items():
         for cfg_key, json_val in keys.items():
+            
             if json_val is not None:
-                if section == "ModuleEchoLink" and cfg_key == "PROXY_SERVER" and json_val == "":
-                     lines = update_key_in_lines(lines, section, cfg_key, "")
-                else:
-                     lines = update_key_in_lines(lines, section, cfg_key, json_val)
+                
+                lines = update_key_in_lines(lines, section, cfg_key, str(json_val))
 
     save_lines(CONFIG_FILE, lines)
+
 
     radio_data = {}
     if os.path.exists(RADIO_JSON):
@@ -180,9 +195,9 @@ def main():
             except:
                 pass
 
-    radio_data['qth_name'] = qth_name
-    radio_data['qth_city'] = qth_city
-    radio_data['qth_loc'] = qth_loc
+    if 'qth_name' in data: radio_data['qth_name'] = qth_name
+    if 'qth_city' in data: radio_data['qth_city'] = qth_city
+    if 'qth_loc' in data: radio_data['qth_loc'] = qth_loc
 
     with open(RADIO_JSON, 'w') as f:
         json.dump(radio_data, f, indent=4)
