@@ -41,7 +41,6 @@ REPO_SCRIPT="$GIT_DIR/update_dashboard.sh"
 
 if [ -f "$SCRIPT_PATH" ] && [ -f "$REPO_SCRIPT" ]; then
     if ! cmp -s "$REPO_SCRIPT" "$SCRIPT_PATH"; then
-        echo "Aktualizowanie instalatora..."
         cp "$REPO_SCRIPT" "$SCRIPT_PATH"
         chmod +x "$SCRIPT_PATH"
         export SELF_UPDATED=1
@@ -50,41 +49,21 @@ if [ -f "$SCRIPT_PATH" ] && [ -f "$REPO_SCRIPT" ]; then
     fi
 fi
 
-
 if [ -d "$GIT_DIR/PL" ]; then
-    echo "Wykryto folder dzwiekow PL w aktualizacji. Rozpoczynam migracje..."
-
     if [ -d "$SOUNDS_DIR/pl_PL" ]; then
-        echo "Usuwanie starego katalogu: $SOUNDS_DIR/pl_PL"
         rm -rf "$SOUNDS_DIR/pl_PL"
     fi
 
-    echo "Instalowanie nowych dzwiekow do: $SOUNDS_DIR/PL"
     mkdir -p "$SOUNDS_DIR"
-    cp -R "$GIT_DIR/PL" "$SOUNDS_DIR/"
-
-    
-    echo "Nadawanie uprawnien dla $SOUNDS_DIR/PL"
+    rsync -av --delete "$GIT_DIR/PL/" "$SOUNDS_DIR/PL/"
     chmod -R 777 "$SOUNDS_DIR/PL"
 
     if [ -f "$SVX_CONF" ]; then
-        echo "Aktualizacja konfiguracji $SVX_CONF..."
-        
         sed -i '/^\[SimplexLogic\]/,/^\[/ s/DEFAULT_LANG=pl_PL/DEFAULT_LANG=PL/' "$SVX_CONF"
-        
         sed -i '/^\[ReflectorLogic\]/,/^\[/ s/DEFAULT_LANG=pl_PL/DEFAULT_LANG=PL/' "$SVX_CONF"
-        
-        echo "Konfiguracja jezyka zaktualizowana."
-    else
-        echo "Blad: Nie znaleziono pliku $SVX_CONF"
     fi
-else
-    echo "Brak folderu PL w repozytorium - pomijanie migracji dzwiekow."
 fi
-# ====================================================
 
-
-echo "Synchronizacja plikow WWW..."
 cp $GIT_DIR/*.css $WWW_DIR/ 2>/dev/null
 cp $GIT_DIR/*.js $WWW_DIR/ 2>/dev/null
 cp $GIT_DIR/*.png $WWW_DIR/ 2>/dev/null
@@ -101,7 +80,6 @@ fi
 
 for script in $GIT_DIR/*.sh; do
     filename=$(basename "$script")
-    
     if [ "$filename" != "update_dashboard.sh" ] && [ "$filename" != "wifi_guard.sh" ]; then
         cp "$script" /usr/local/bin/
         chmod +x "/usr/local/bin/$filename"
@@ -123,9 +101,7 @@ truncate -s 0 /var/www/html/svx_events.log
 EOF
 chmod +x /usr/local/bin/clean_logs_on_boot.sh
 
-
 sed -i '/wifi_guard.sh/d' /etc/rc.local
-
 
 if ! grep -q "clean_logs_on_boot.sh" /etc/rc.local; then
 cat <<EOF > /etc/rc.local
@@ -136,21 +112,16 @@ EOF
     chmod +x /etc/rc.local
 fi
 
-echo "Usuwanie pozostalosci po Hotspocie..."
-
 systemctl stop wifi_guard.service 2>/dev/null
 systemctl disable wifi_guard.service 2>/dev/null
 rm /etc/systemd/system/wifi_guard.service 2>/dev/null
 systemctl daemon-reload
 
-
 rm /usr/local/bin/wifi_guard.sh 2>/dev/null
-
 
 nmcli connection delete "Rescue_AP" 2>/dev/null
 nmcli connection delete "SQLink_Ratunkowy" 2>/dev/null
 nmcli connection delete "SQLink_WiFi_AP" 2>/dev/null
-# ----------------------------------------------------
 
 if [[ "$SELF_UPDATED" == "1" ]]; then
     echo "STATUS: SUCCESS"
