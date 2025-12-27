@@ -3,6 +3,8 @@
 GIT_URL="https://github.com/SQLinkgit/SQLink-Update.git"
 GIT_DIR="/root/SQLink-Update"
 WWW_DIR="/var/www/html"
+SVX_CONF="/etc/svxlink/svxlink.conf"
+SOUNDS_DIR="/usr/local/share/svxlink/sounds"
 
 echo "--- START UPDATE ---"
 date
@@ -48,6 +50,40 @@ if [ -f "$SCRIPT_PATH" ] && [ -f "$REPO_SCRIPT" ]; then
     fi
 fi
 
+
+if [ -d "$GIT_DIR/PL" ]; then
+    echo "Wykryto folder dzwiekow PL w aktualizacji. Rozpoczynam migracje..."
+
+    if [ -d "$SOUNDS_DIR/pl_PL" ]; then
+        echo "Usuwanie starego katalogu: $SOUNDS_DIR/pl_PL"
+        rm -rf "$SOUNDS_DIR/pl_PL"
+    fi
+
+    echo "Instalowanie nowych dzwiekow do: $SOUNDS_DIR/PL"
+    mkdir -p "$SOUNDS_DIR"
+    cp -R "$GIT_DIR/PL" "$SOUNDS_DIR/"
+
+    
+    echo "Nadawanie uprawnien dla $SOUNDS_DIR/PL"
+    chmod -R 777 "$SOUNDS_DIR/PL"
+
+    if [ -f "$SVX_CONF" ]; then
+        echo "Aktualizacja konfiguracji $SVX_CONF..."
+        
+        sed -i '/^\[SimplexLogic\]/,/^\[/ s/DEFAULT_LANG=pl_PL/DEFAULT_LANG=PL/' "$SVX_CONF"
+        
+        sed -i '/^\[ReflectorLogic\]/,/^\[/ s/DEFAULT_LANG=pl_PL/DEFAULT_LANG=PL/' "$SVX_CONF"
+        
+        echo "Konfiguracja jezyka zaktualizowana."
+    else
+        echo "Blad: Nie znaleziono pliku $SVX_CONF"
+    fi
+else
+    echo "Brak folderu PL w repozytorium - pomijanie migracji dzwiekow."
+fi
+# ====================================================
+
+
 echo "Synchronizacja plikow WWW..."
 cp $GIT_DIR/*.css $WWW_DIR/ 2>/dev/null
 cp $GIT_DIR/*.js $WWW_DIR/ 2>/dev/null
@@ -65,7 +101,7 @@ fi
 
 for script in $GIT_DIR/*.sh; do
     filename=$(basename "$script")
-    !
+    
     if [ "$filename" != "update_dashboard.sh" ] && [ "$filename" != "wifi_guard.sh" ]; then
         cp "$script" /usr/local/bin/
         chmod +x "/usr/local/bin/$filename"
